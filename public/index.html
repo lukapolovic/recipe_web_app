@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f7f2">
+  <meta name="description" content="Your personal recipe collection, meal planner and shopping list.">
+  <title>Pantry — your everyday recipe book</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M3 4h6a4 4 0 0 1 3 1.5A4 4 0 0 1 15 4h6v15h-6a4 4 0 0 0-3 1.5A4 4 0 0 0 9 19H3zM12 6v14"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5 7h14l1 14H4zM8 8V6a4 4 0 0 1 8 0v2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M17 4a3 3 0 0 1 0 6M17 13a5 5 0 0 1 4 5v3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 3C7 2 2 8 5 15s15 6 15-12ZM4 21 15 10"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+  </svg>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Pantry home"><span class="brand-mark"><svg class="icon"><use href="#i-leaf"/></svg></span>pantry<span class="brand-dot">.</span></a>
+    <nav aria-label="Main navigation">
+      <button class="nav-button active" data-view="recipes" aria-current="page"><svg class="icon"><use href="#i-book"/></svg>My recipes</button>
+      <button class="nav-button" data-view="shopping"><svg class="icon"><use href="#i-bag"/></svg>Shopping list<span id="shopping-count" class="nav-count" hidden>0</span></button>
+    </nav>
+    <button class="button primary header-add" data-action="new"><svg class="icon"><use href="#i-plus"/></svg><span>Add recipe</span></button>
+  </header>
+  <main id="main" class="page-shell">
+    <div class="loading-state" role="status">Opening your recipe book…</div>
+  </main>
+  <footer class="site-footer"><span>A little planning. A lot of good food.</span><span>Your recipes, saved on this computer.</span></footer>
+  <dialog id="recipe-dialog" class="recipe-dialog" aria-labelledby="dialog-title"></dialog>
+  <dialog id="import-dialog" class="import-dialog" aria-labelledby="import-title"></dialog>
+  <dialog id="editor-dialog" class="editor-dialog" aria-labelledby="editor-title"></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
