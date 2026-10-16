@@ -2,6 +2,7 @@ import { APP_NAME } from './brand.js';
 import { CATEGORIES, UNITS, GRAMS_PER_UNIT } from './recipe-config.js';
 import { nutritionFor, shoppingList, displayAmount, checkKey } from './recipe-math.js';
 import { createHttpStore, createDemoStore } from './cookbook-store.js';
+import morphdom from './vendor/morphdom.js';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
@@ -229,7 +230,7 @@ function searchPage() {
   const people=(remote?remote.profiles:feed.profiles.filter(p=>matches([p.username,displayName(p)]))).filter(p=>p.id!==user.id);
   return `<div class="page-heading"><span class="eyebrow">A LITTLE CURIOSITY GOES A LONG WAY</span><h1>${q?`At the table: “${esc(search)}”`:'Find your next favourite.'}</h1><p class="muted">Search usernames, cookbook names, recipes, ingredients and labels.</p></div><div class="filter-row"><label class="form-field">Meal<select id="category-filter"><option value="">Any meal</option>${optionList(CATEGORIES,category)}</select></label><label class="form-field">Main ingredient<select id="meat-filter"><option value="">Any ingredient</option>${optionList(meats,meatType)}</select></label><label class="form-field">Label<select id="tag-filter"><option value="">Any label</option>${optionList([...new Set(feed.recipes.flatMap(r=>r.tags||[]))].sort(),tag)}</select></label><button class="text-button" data-action="reset-search">Clear filters</button></div><section class="page-section"><div class="section-head"><h2>Recipes</h2><span class="muted">${recipes.length} found</span></div><div class="recipe-grid">${recipes.map(recipeCard).join('')||empty('No recipes found.','Try another name or give the filters a little more room.')}</div></section>${!category&&!meatType&&!tag?`<section class="page-section"><div class="section-head"><h2>Cookbooks</h2><span class="muted">${books.length} found</span></div><div class="cookbook-grid">${books.map(cookbookCard).join('')}</div></section><section class="page-section"><div class="section-head"><h2>People</h2><span class="muted">${people.length} found</span></div><div class="people-grid">${people.slice(0,12).map(personCard).join('')}</div></section>`:''}`;
 }
-function renderMain(page) { const main=$('#main'); if(!main)return; touch(); resetPhotoQueue(); main.innerHTML=page(); hydratePhotos(main); }
+function renderMain(page) { const main=$('#main'); if(!main)return; touch(); resetPhotoQueue(); patch(main,page()); hydratePhotos(main); }
 let searchController;
 async function runSearch() {
   const key=JSON.stringify([search,category,meatType,tag]);
@@ -255,11 +256,41 @@ function shoppingPage() {
   const rows=shoppingList(feed.recipes,planner.cart||[]), done=rows.filter(row=>planner.checked?.[checkKey(row)]===true).length;
   return `<div class="page-heading"><span class="eyebrow">FROM OUR KITCHEN TO THE MARKET</span><h1>A little list. All we need.</h1><p class="muted">A shared plan for the meals you want to make together.</p></div><label class="form-field planner-select">Our cookbook<select id="planner-book">${books.map(b=>`<option value="${b.id}" ${plannerBook===b.id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></label><div class="shopping-layout"><section class="shopping-paper"><div class="section-head"><h2>The shopping list</h2><button class="button small" data-action="download-list">Save list</button></div><p class="muted">${done} of ${rows.length} ingredients checked</p>${rows.map((row,i)=>`<label class="shopping-row ${planner.checked?.[checkKey(row)]===true?'checked':''}"><input type="checkbox" data-shopping="${i}" ${planner.checked?.[checkKey(row)]===true?'checked':''}><span>${esc(row.name)}<small>${esc(row.notes.join(' · '))}</small></span><strong>${displayAmount(row.quantity,row.unit)}</strong></label>`).join('')||empty('Nothing on the list just yet.','Open any recipe you want to try and add it to your meal plan.')}<p class="paper-footnote">Matching ingredient names combine. Grams/kilograms/ounces/pounds and millilitres/litres are converted; cups and spoon measures stay separate.</p></section><aside class="meal-plan"><span class="eyebrow">ON THE MENU</span><h2>What we're making</h2>${(planner.cart||[]).map(e=>{const r=recipeById(e.recipeId);return r?`<div class="planned-meal"><button class="text-button" data-action="recipe" data-id="${r.id}">${esc(r.title)}</button>${r.cookbookId!==plannerBook?`<p class="trial-source">Trying it out · From ${esc(bookById(r.cookbookId)?.name||'a friend’s cookbook')}</p><button class="text-button trial-save" data-action="save-copy" data-id="${r.id}">${icon('book')}Save to our cookbook</button>`:''}<div><label>Servings <input type="number" min="1" max="100" step="1" value="${e.servings}" data-plan-servings="${r.id}" aria-label="Servings for ${esc(r.title)}"></label><button class="icon-button" data-action="unplan" data-id="${r.id}" aria-label="Remove ${esc(r.title)} from plan">${icon('close')}</button></div></div>`:''}).join('')||'<p class="muted">Choose a few recipes. We’ll bring the ingredients together.</p>'}<button class="button full" data-view="search">Find recipes to try${icon('arrow')}</button></aside></div>`;
 }
+// Redraws patch the DOM to match the new markup instead of replacing it, so focus, scroll,
+// half-typed text, ticked boxes and open <details> survive, and entrance animations do not replay.
+// What each form control or <details> was last drawn with: the markup only overrides what the
+// person changed when it says something new, and never the field they are typing in.
+const drawnState=new WeakMap();
+const markupState=el=>el.tagName==='DETAILS'?el.hasAttribute('open'):el.type==='checkbox'||el.type==='radio'?el.hasAttribute('checked'):el.tagName==='TEXTAREA'?el.textContent:el.getAttribute('value');
+function keepLiveState(from,to){
+  if(from.type==='file')return;
+  const drawn=drawnState.has(from)?drawnState.get(from):markupState(from), next=markupState(to);
+  drawnState.set(from,next);
+  const typing=from===document.activeElement&&from.tagName!=='DETAILS'&&from.type!=='checkbox'&&from.type!=='radio';
+  if(drawn!==next&&!typing)return;
+  if(from.tagName==='DETAILS')to.open=from.open;
+  else if(from.type==='checkbox'||from.type==='radio')to.checked=from.checked;
+  else to.value=from.value;
+}
+function patch(root,html){
+  morphdom(root,`<div>${html}</div>`,{childrenOnly:true,onBeforeElUpdated(from,to){
+    if(from.id==='main'){
+      // A newly navigated-to page is drawn fresh so its entrance animations play; otherwise keep
+      // .page-enter until the next navigation, so animations still running are not cut short.
+      if(entering){from.className=to.className;from.replaceChildren(...to.childNodes);return false;}
+      if(from.classList.contains('page-enter'))to.classList.add('page-enter');
+    }
+    // A photo slot's <img> lives in template.content, which morphing does not reach.
+    if(from.tagName==='TEMPLATE'&&from.innerHTML!==to.innerHTML)from.innerHTML=to.innerHTML;
+    if(['INPUT','TEXTAREA','DETAILS'].includes(from.tagName))keepLiveState(from,to);
+    return !from.isEqualNode(to);
+  }});
+}
 function render() {
   if(!user)return renderAuth();
   const pages={discover, mine:()=>collection('mine'),following:()=>collection('following'),book:cookbookPage,recipe:recipePage,friends:friendsPage,search:searchPage,profile:profilePage,shopping:shoppingPage};
   touch(); resetPhotoQueue();
-  app.innerHTML=shell((pages[view]||discover)());
+  patch(app,shell((pages[view]||discover)()));
   entering=false;
   hydratePhotos(app);
 }
