@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import { Readable } from 'node:stream';
 import { createApp } from '../server.js';
+import { createSocialApi } from '../social-api.js';
 
 const USER = { id: '11111111-1111-4111-8111-111111111111' };
 const PHOTO = '44444444-4444-4444-8444-444444444444';
@@ -279,5 +280,52 @@ test('a signed-in photo copy is made through the adapter for the caller, and unr
   const hidden = socialMock({ getPhoto: async () => null });
   await withServer({ socialApi: hidden.api }, async ({ request }) => {
     assert.equal((await request(`/api/social/photos/${PHOTO}/copy`, { method: 'POST', body: {} })).status, 404);
+  });
+});
+
+test('account deletion and reports run through the real adapter over HTTP, and only with the right password', async () => {
+  const upstream = [];
+  const socialApi = createSocialApi({ url: 'https://example.supabase.co', key: 'sb_publishable_test', fetcher: async (url, options) => {
+    const input = options.body && !Buffer.isBuffer(options.body) ? JSON.parse(options.body) : undefined;
+    upstream.push({ path: url.pathname, method: options.method, input });
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: USER.id, email: 'luka@example.com' });
+    if (url.pathname === '/rest/v1/profiles') return Response.json([{ username: 'luka' }]);
+    if (url.pathname === '/auth/v1/token') return input.password === 'rightpassword' ? Response.json({ access_token: 'fresh.token' }) : Response.json({ msg: 'Invalid login credentials' }, { status: 400 });
+    if (url.pathname === '/rest/v1/rpc/delete_my_account') return Response.json([`${USER.id}/${PHOTO}.webp`]);
+    if (url.pathname === '/rest/v1/reports') return Response.json({ code: '23505', message: 'duplicate key' }, { status: 409 });
+    return Response.json([]);
+  } });
+  await withServer({ socialApi }, async ({ request }) => {
+    const deletes = () => upstream.filter(call => call.path.endsWith('/delete_my_account'));
+    assert.equal((await request('/api/social/account/delete', { method: 'POST', token: false, body: { username: 'luka', password: 'rightpassword' } })).status, 401);
+    assert.equal((await request('/api/social/account/delete', { method: 'POST', body: { username: 'luka', password: 'rightpassword' }, headers: { Origin: 'https://untrusted.example' } })).status, 403);
+    const wrong = await request('/api/social/account/delete', { method: 'POST', body: { username: 'luka', password: 'wrongpassword' } });
+    assert.equal(wrong.status, 400);
+    assert.match((await wrong.json()).error, /Nothing was deleted/);
+    const mismatch = await request('/api/social/account/delete', { method: 'POST', body: { username: 'notluka', password: 'rightpassword' } });
+    assert.equal(mismatch.status, 400);
+    assert.deepEqual(deletes(), []);
+    const done = await request('/api/social/account/delete', { method: 'POST', body: { username: 'luka', password: 'rightpassword' } });
+    assert.equal(done.status, 200);
+    assert.deepEqual(await done.json(), { deleted: true, photosRemoved: true });
+    assert.equal(deletes().length, 1);
+    assert.deepEqual(upstream.at(-1), { path: '/storage/v1/object/social-recipe-photos', method: 'DELETE', input: { prefixes: [`${USER.id}/${PHOTO}.webp`] } });
+    const duplicate = await request('/api/social/reports', { method: 'POST', body: { targetType: 'recipe', targetId: PHOTO, reason: 'spam' } });
+    assert.equal(duplicate.status, 409);
+    assert.match((await duplicate.json()).error, /already reported/);
+  });
+});
+
+test('the local demo has no account deletion or reports, and the legal pages are served under the strict policy', async () => {
+  await withServer({}, async ({ request }) => {
+    for (const path of ['/api/social/account/delete', '/api/social/reports']) assert.equal((await request(path, { method: 'POST', body: {} })).status, 503);
+    for (const path of ['/privacy.html', '/terms.html']) {
+      const response = await request(path, { token: false });
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('content-security-policy'), /script-src 'self'; style-src 'self'/);
+      const html = await response.text();
+      assert.doesNotMatch(html, /<script|style=|<style/i, 'Legal pages need no scripts or inline styles');
+      assert.match(html, /href="\/legal\.css"/);
+    }
   });
 });

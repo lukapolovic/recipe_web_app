@@ -208,7 +208,7 @@ test('camel-case decoding leaves recipe JSON and shopping-list map keys intact',
 test('schema declares RLS for every data table, secure stats, rating uniqueness and restricted photos', async () => {
   const sql = await readFile(new URL('../hosting/social-schema.sql', import.meta.url), 'utf8');
   const tables = [...sql.matchAll(/create table public\.(\w+)/g)].map(match => match[1]);
-  assert.equal(tables.length, 10);
+  assert.equal(tables.length, 11);
   for (const table of tables) assert.ok(sql.includes(`alter table public.${table} enable row level security;`), `${table} has RLS`);
   assert.match(sql, /unique\(recipe_id,user_id\)/);
   assert.match(sql, /rating integer not null check\(rating between 1 and 5\)/);
@@ -217,6 +217,75 @@ test('schema declares RLS for every data table, secure stats, rating uniqueness 
   assert.match(sql, /not public\.cookbook_is_member\(r\.cookbook_id\)/);
   assert.match(sql, /delete from public\.recipe_reviews v using public\.cookbook_recipes r/);
   assert.match(sql, /'social-recipe-photos','social-recipe-photos',false/);
-  assert.match(sql, /public\.cookbook_storage_owned\(name\) and public\.cookbook_storage_unattached\(name\)/);
+  assert.match(sql, /\(public\.cookbook_storage_owned\(name\) or public\.cookbook_storage_orphaned\(name\)\) and public\.cookbook_storage_unattached\(name\)/);
+  assert.match(sql, /create function public\.delete_my_account\(\) returns jsonb\s+language plpgsql security definer set search_path = ''/);
   assert.doesNotMatch(sql, /grant update\([^\n]*\) on public\.cookbook_planners/);
+});
+
+test('account deletion re-checks username and password before the database function runs', async () => {
+  const outcome = { password: 'rightpassword' };
+  const { invoke, calls } = harness(call => {
+    if (call.path === '/rest/v1/profiles') return [{ username: 'luka' }];
+    if (call.path === '/auth/v1/token') return call.input.password === outcome.password ? { access_token: 'fresh.token', user: { id: USER } } : Response.json({ msg: 'Invalid login credentials' }, { status: 400 });
+    if (call.path === '/rest/v1/rpc/delete_my_account') return [`${USER}/${PHOTO}.webp`];
+    return [];
+  });
+  const destructive = () => calls.filter(call => call.path.endsWith('/delete_my_account') || call.path.includes('/storage/'));
+  await assert.rejects(invoke('/account/delete', 'POST', { username: 'someoneelse', password: 'rightpassword' }), { status: 400, message: /username exactly/ });
+  assert.equal(calls.some(call => call.path === '/auth/v1/token'), false, 'A wrong username never tries the password');
+  await assert.rejects(invoke('/account/delete', 'POST', { username: 'luka', password: 'wrongpassword' }), { status: 400, message: 'That password did not match. Nothing was deleted.' });
+  await assert.rejects(invoke('/account/delete', 'POST', { username: 'luka' }), { status: 400 });
+  assert.deepEqual(destructive(), []);
+
+  const result = await invoke('/account/delete', 'POST', { username: ' @Luka ', password: 'rightpassword' });
+  assert.deepEqual(result.body, { deleted: true, photosRemoved: true });
+  const check = calls.filter(call => call.path === '/auth/v1/token').at(-1);
+  assert.match(check.url, /grant_type=password/);
+  assert.deepEqual(check.input, { email: 'luka@example.com', password: 'rightpassword' }, 'The password is checked against the signed-in user’s own email');
+  const [rpc, storage] = destructive();
+  assert.equal(rpc.headers.Authorization, headers.authorization);
+  assert.deepEqual(rpc.input, {});
+  assert.equal(storage.method, 'DELETE');
+  assert.equal(storage.headers.Authorization, headers.authorization);
+  assert.deepEqual(storage.input.prefixes, [`${USER}/${PHOTO}.webp`]);
+});
+
+test('account deletion still succeeds when photo files cannot be removed afterwards', async () => {
+  const { invoke } = harness(call => {
+    if (call.path === '/rest/v1/profiles') return [{ username: 'luka' }];
+    if (call.path === '/auth/v1/token') return { access_token: 'fresh.token' };
+    if (call.path.endsWith('/delete_my_account')) return [`${USER}/${PHOTO}.webp`];
+    return Response.json({ message: 'unavailable' }, { status: 500 });
+  });
+  const errors = []; const original = console.error; console.error = message => errors.push(message);
+  try { assert.deepEqual((await invoke('/account/delete', 'POST', { username: 'luka', password: 'rightpassword' })).body, { deleted: true, photosRemoved: false }); }
+  finally { console.error = original; }
+  assert.equal(errors.length, 1);
+});
+
+test('reports validate their fields, use the caller’s token and explain duplicates and unreadable targets', async () => {
+  let reply = call => [{ id: REVIEW, ...call.input }];
+  const { invoke, calls } = harness(call => reply(call));
+  const result = await invoke('/reports', 'POST', { targetType: 'recipe', targetId: RECIPE, reason: 'copyright', note: ' From my blog. ', reporterId: PHOTO });
+  assert.equal(result.status, 201);
+  assert.deepEqual(calls.at(-1).input, { target_type: 'recipe', target_id: RECIPE, reason: 'copyright', note: 'From my blog.' }, 'reporter_id is left to the database default');
+  for (const input of [{ targetType: 'user', targetId: RECIPE, reason: 'spam' }, { targetType: 'recipe', targetId: 'x', reason: 'spam' }, { targetType: 'recipe', targetId: RECIPE, reason: 'meh' }, { targetType: 'recipe', targetId: RECIPE, reason: 'spam', note: 'x'.repeat(501) }]) {
+    await assert.rejects(invoke('/reports', 'POST', input), { status: 400 });
+  }
+  reply = () => Response.json({ code: '23505', message: 'duplicate key value violates unique constraint' }, { status: 409 });
+  await assert.rejects(invoke('/reports', 'POST', { targetType: 'review', targetId: REVIEW, reason: 'spam' }), { status: 409, message: /already reported/ });
+  reply = () => Response.json({ code: '42501', message: 'new row violates row-level security policy' }, { status: 403 });
+  await assert.rejects(invoke('/reports', 'POST', { targetType: 'cookbook', targetId: BOOK, reason: 'other' }), { status: 403, message: /not your own/ });
+});
+
+test('photo limits from the database become clear upload messages', async () => {
+  for (const [code, message] of [['CB001', /too many unsaved photos/], ['CB002', /limit of 500 photos/]]) {
+    const { api } = harness(() => Response.json({ code, message: 'limit' }, { status: 400 }));
+    const user = await api.authenticate(headers);
+    await assert.rejects(api.putPhoto(user, { id: PHOTO, data: Buffer.from('image') }), { status: 400, message });
+  }
+});
+
+test('recipes whose author deleted their account decode with a null author', () => {
+  assert.deepEqual(decodeSocial({ author_id: null, cookbook_id: BOOK }), { authorId: null, cookbookId: BOOK });
 });

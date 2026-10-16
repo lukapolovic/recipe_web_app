@@ -14,7 +14,11 @@ create table public.profiles (
 create table public.social_photos (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references public.profiles(id) on delete cascade,
-  path text not null unique check(path=owner_id::text || '/' || id::text || '.webp'),
+  -- Uploads must use '<owner_id>/<id>.webp' (photos_create policy). The check
+  -- only fixes the file name, because a photo kept by a cookbook outlives its
+  -- uploader's account: delete_my_account() hands the row to the remaining
+  -- cookbook owner while the stored object keeps its original path.
+  path text not null unique check(path ~ ('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/' || id::text || '\.webp$')),
   created_at timestamptz not null default now()
 );
 create table public.cookbooks (
@@ -50,7 +54,9 @@ create unique index friendship_unique_pair on public.friendships
 create table public.cookbook_recipes (
   id uuid primary key default gen_random_uuid(),
   cookbook_id uuid not null references public.cookbooks(id) on delete cascade,
-  author_id uuid not null references public.profiles(id) on delete cascade,
+  -- Null once the author deletes their account: the recipe stays with the
+  -- cookbook and is shown as written by a former member.
+  author_id uuid references public.profiles(id) on delete set null,
   title text not null check(length(btrim(title)) between 1 and 120),
   description text not null default '' check(length(description) <= 600),
   category text not null default 'Dinner' check(category in ('Breakfast','Lunch','Snack','Shake','Dinner')),
@@ -89,6 +95,18 @@ create table public.review_replies (
   comment text not null check(length(btrim(comment)) between 1 and 2000),
   created_at timestamptz not null default now()
 );
+-- Reports are read by the operator in the Supabase dashboard. Targets are kept
+-- as plain ids so a report survives the reported content being removed.
+create table public.reports (
+  id uuid primary key default gen_random_uuid(),
+  reporter_id uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  target_type text not null check(target_type in ('profile','cookbook','recipe','review','reply')),
+  target_id uuid not null,
+  reason text not null check(reason in ('spam','offensive','copyright','other')),
+  note text not null default '' check(length(note) <= 500),
+  created_at timestamptz not null default now(),
+  unique(reporter_id,target_type,target_id)
+);
 create table public.cookbook_planners (
   cookbook_id uuid primary key references public.cookbooks(id) on delete cascade,
   state jsonb not null default '{"cart":[],"checked":{}}'::jsonb,
@@ -113,6 +131,7 @@ create index recipe_reviews_created on public.recipe_reviews(created_at desc);
 create index review_replies_review on public.review_replies(review_id,created_at);
 create index review_replies_user on public.review_replies(user_id);
 create index social_photos_owner on public.social_photos(owner_id);
+create index reports_created on public.reports(created_at desc);
 -- Lets the recipe-deletion trigger find referencing shopping lists without
 -- unpacking every planner in the database.
 create index cookbook_planners_cart on public.cookbook_planners using gin((state->'cart') jsonb_path_ops);
@@ -204,6 +223,30 @@ $$;
 create function public.cookbook_storage_unattached(object_path text) returns boolean
 language sql stable security definer set search_path = '' as $$
   select not exists(select 1 from public.social_photos p where p.path=object_path and not public.cookbook_photo_unattached(p.id));
+$$;
+-- A file whose metadata row is gone and whose path prefix is no longer an
+-- account. This happens when a photo inherited from a deleted account is
+-- discarded by its new owner (metadata first, then the file), and while the
+-- server removes a leaving user's files. Such a file is unreferenced garbage.
+create function public.cookbook_storage_orphaned(object_path text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select object_path ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/'
+    and not exists(select 1 from public.social_photos p where p.path=object_path)
+    and not exists(select 1 from public.profiles pr where pr.id=case when object_path ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/' then split_part(object_path,'/',1)::uuid end);
+$$;
+-- People may report what they can see, but not their own content.
+create function public.cookbook_can_report(kind text, target uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select case kind
+    when 'profile' then target<>auth.uid() and exists(select 1 from public.profiles p where p.id=target)
+    when 'cookbook' then public.cookbook_can_read(target) and not public.cookbook_is_member(target)
+    when 'recipe' then exists(select 1 from public.cookbook_recipes r where r.id=target
+      and public.cookbook_can_read(r.cookbook_id) and not public.cookbook_is_member(r.cookbook_id))
+    when 'review' then exists(select 1 from public.recipe_reviews v where v.id=target
+      and v.user_id<>auth.uid() and public.cookbook_can_read_recipe(v.recipe_id))
+    when 'reply' then exists(select 1 from public.review_replies x where x.id=target
+      and x.user_id<>auth.uid() and public.cookbook_can_read_review(x.review_id))
+    else false end;
 $$;
 
 create function public.cookbook_touch_updated() returns trigger language plpgsql set search_path = '' as $$
@@ -367,6 +410,66 @@ create trigger recipe_remove_from_planner after delete on public.cookbook_recipe
   for each row execute function public.cookbook_recipe_deleted();
 revoke all on function public.cookbook_recipe_deleted() from public,anon,authenticated;
 
+-- Upload limits per account: drafts (photos no recipe or cover uses yet) and
+-- photos overall. The profile row lock serialises one person's uploads.
+create function public.cookbook_photo_limits() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform 1 from public.profiles where id=new.owner_id for update;
+  if (select count(*) from public.social_photos p where p.owner_id=new.owner_id)>=500 then
+    raise exception 'You have reached the limit of 500 photos. Remove some recipe photos first.' using errcode='CB002';
+  end if;
+  if (select count(*) from public.social_photos p where p.owner_id=new.owner_id
+      and not exists(select 1 from public.cookbook_recipes r where r.image_id=p.id)
+      and not exists(select 1 from public.cookbooks b where b.cover_image_id=p.id))>=20 then
+    raise exception 'You have too many unsaved photos. Save or discard some first.' using errcode='CB001';
+  end if;
+  return new;
+end;
+$$;
+create trigger social_photo_limits before insert on public.social_photos
+  for each row execute function public.cookbook_photo_limits();
+revoke all on function public.cookbook_photo_limits() from public,anon,authenticated;
+
+-- Deletes the signed-in account. Solo cookbooks go; a cookbook shared with an
+-- accepted partner passes to them (pending invitations are dropped), and the
+-- leaver's recipes there stay with author_id null. Photos used by surviving
+-- recipes or covers are handed to that cookbook's owner; the stored file keeps
+-- its path (see social_photos.path). All other photo rows of the leaver are
+-- deleted and their storage paths returned: SQL cannot remove Storage files,
+-- so the caller deletes them through the Storage API with the same token.
+-- Reviews, replies, follows, friendships, memberships, reports and the
+-- profile are removed by the foreign-key cascades from auth.users.
+create function public.delete_my_account() returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare me uuid := auth.uid(); book record; paths jsonb;
+begin
+  if me is null then raise exception 'Sign in to continue.' using errcode='42501'; end if;
+  perform 1 from public.profiles where id=me for update;
+  for book in select b.id from public.cookbooks b where b.owner_id=me order by b.id for update loop
+    delete from public.cookbook_members where cookbook_id=book.id and status='invited';
+    if exists(select 1 from public.cookbook_members where cookbook_id=book.id and user_id<>me and status='accepted') then
+      -- cookbook_one_owner allows one owner row: remove the leaver's first.
+      delete from public.cookbook_members where cookbook_id=book.id and user_id=me;
+      update public.cookbook_members set role='owner' where cookbook_id=book.id and status='accepted';
+      update public.cookbooks set owner_id=(select m.user_id from public.cookbook_members m where m.cookbook_id=book.id and m.role='owner') where id=book.id;
+    else
+      delete from public.cookbooks where id=book.id;
+    end if;
+  end loop;
+  update public.social_photos p set owner_id=keeper.owner_id from (
+    select distinct on (photo) photo, owner_id from (
+      select r.image_id photo, b.owner_id from public.cookbook_recipes r join public.cookbooks b on b.id=r.cookbook_id where r.image_id is not null
+      union all select b.cover_image_id, b.owner_id from public.cookbooks b where b.cover_image_id is not null
+    ) used where owner_id<>me order by photo, owner_id
+  ) keeper where p.id=keeper.photo and p.owner_id=me;
+  with removed as (delete from public.social_photos where owner_id=me returning path)
+    select coalesce(jsonb_agg(path order by path),'[]'::jsonb) into paths from removed;
+  delete from auth.users where id=me;
+  return paths;
+end;
+$$;
+
 alter table public.social_photos enable row level security;
 alter table public.profiles enable row level security;
 alter table public.cookbooks enable row level security;
@@ -377,9 +480,10 @@ alter table public.cookbook_follows enable row level security;
 alter table public.recipe_reviews enable row level security;
 alter table public.review_replies enable row level security;
 alter table public.cookbook_planners enable row level security;
+alter table public.reports enable row level security;
 
 create policy photos_read on public.social_photos for select to authenticated using(owner_id=auth.uid() or public.cookbook_photo_readable(id));
-create policy photos_create on public.social_photos for insert to authenticated with check(owner_id=auth.uid());
+create policy photos_create on public.social_photos for insert to authenticated with check(owner_id=auth.uid() and path=owner_id::text || '/' || id::text || '.webp');
 create policy photos_delete on public.social_photos for delete to authenticated using(owner_id=auth.uid() and public.cookbook_photo_unattached(id));
 create policy profiles_read on public.profiles for select to authenticated using(true);
 create policy profiles_edit on public.profiles for update to authenticated using(id=auth.uid()) with check(id=auth.uid());
@@ -407,6 +511,8 @@ create policy replies_read on public.review_replies for select to authenticated 
 create policy replies_create on public.review_replies for insert to authenticated with check(user_id=auth.uid() and public.cookbook_can_reply(review_id));
 create policy replies_delete on public.review_replies for delete to authenticated using(user_id=auth.uid());
 create policy planner_read on public.cookbook_planners for select to authenticated using(public.cookbook_is_member(cookbook_id));
+create policy reports_read on public.reports for select to authenticated using(reporter_id=auth.uid());
+create policy reports_create on public.reports for insert to authenticated with check(reporter_id=auth.uid() and public.cookbook_can_report(target_type,target_id));
 create policy planner_edit on public.cookbook_planners for update to authenticated using(public.cookbook_is_member(cookbook_id)) with check(public.cookbook_is_member(cookbook_id));
 
 -- Views use the caller's RLS (Postgres 15+). Cookbook stars are AVG of every
@@ -436,6 +542,10 @@ grant select on public.social_photos,public.profiles,public.cookbooks,public.coo
 grant update(username,display_name,bio) on public.profiles to authenticated;
 grant insert,delete on public.social_photos,public.cookbooks,public.friendships,public.cookbook_recipes,public.cookbook_follows,public.recipe_reviews,public.review_replies to authenticated;
 grant delete on public.cookbook_members to authenticated;
+-- Reports cannot be edited or withdrawn; reporter_id defaults to the caller.
+revoke all on public.reports from anon,authenticated;
+grant select on public.reports to authenticated;
+grant insert(target_type,target_id,reason,note) on public.reports to authenticated;
 grant update(name,description,visibility,cover_image_id,cover_color) on public.cookbooks to authenticated;
 grant update(title,description,category,meat_type,diet,tags,servings,minutes,ingredients,instructions,image_id,source_url,source_calories,color) on public.cookbook_recipes to authenticated;
 grant update(rating,comment) on public.recipe_reviews to authenticated;
@@ -443,8 +553,8 @@ grant update(rating,comment) on public.recipe_reviews to authenticated;
 
 -- PostgreSQL grants new functions to PUBLIC by default; explicitly close that
 -- default for every function in this application before allowing signed-in use.
-revoke all on function public.cookbook_new_user(),public.cookbook_created(),public.cookbook_touch_updated(),public.cookbook_is_member(uuid),public.cookbook_is_owner(uuid),public.cookbook_can_read(uuid),public.cookbook_can_read_recipe(uuid),public.cookbook_can_review(uuid),public.cookbook_can_read_review(uuid),public.cookbook_can_reply(uuid),public.cookbook_photo_owned(uuid),public.cookbook_photo_attachable(uuid,uuid),public.cookbook_photo_readable(uuid),public.cookbook_photo_unattached(uuid),public.cookbook_storage_readable(text),public.cookbook_storage_owned(text),public.cookbook_storage_unattached(text),public.cookbook_invite_partner(uuid,text),public.cookbook_accept_invitation(uuid),public.cookbook_accept_friendship(uuid),public.cookbook_my_memberships(),public.cookbook_get_planner(uuid),public.cookbook_save_planner(uuid,jsonb,integer),public.cookbook_search(text,text,text,text) from public,anon;
-grant execute on function public.cookbook_is_member(uuid),public.cookbook_is_owner(uuid),public.cookbook_can_read(uuid),public.cookbook_can_read_recipe(uuid),public.cookbook_can_review(uuid),public.cookbook_can_read_review(uuid),public.cookbook_can_reply(uuid),public.cookbook_photo_owned(uuid),public.cookbook_photo_attachable(uuid,uuid),public.cookbook_photo_readable(uuid),public.cookbook_photo_unattached(uuid),public.cookbook_storage_readable(text),public.cookbook_storage_owned(text),public.cookbook_storage_unattached(text),public.cookbook_invite_partner(uuid,text),public.cookbook_accept_invitation(uuid),public.cookbook_accept_friendship(uuid),public.cookbook_my_memberships(),public.cookbook_get_planner(uuid),public.cookbook_save_planner(uuid,jsonb,integer),public.cookbook_search(text,text,text,text) to authenticated;
+revoke all on function public.cookbook_new_user(),public.cookbook_created(),public.cookbook_touch_updated(),public.cookbook_is_member(uuid),public.cookbook_is_owner(uuid),public.cookbook_can_read(uuid),public.cookbook_can_read_recipe(uuid),public.cookbook_can_review(uuid),public.cookbook_can_read_review(uuid),public.cookbook_can_reply(uuid),public.cookbook_photo_owned(uuid),public.cookbook_photo_attachable(uuid,uuid),public.cookbook_photo_readable(uuid),public.cookbook_photo_unattached(uuid),public.cookbook_storage_readable(text),public.cookbook_storage_owned(text),public.cookbook_storage_unattached(text),public.cookbook_storage_orphaned(text),public.cookbook_can_report(text,uuid),public.cookbook_invite_partner(uuid,text),public.cookbook_accept_invitation(uuid),public.cookbook_accept_friendship(uuid),public.cookbook_my_memberships(),public.cookbook_get_planner(uuid),public.cookbook_save_planner(uuid,jsonb,integer),public.cookbook_search(text,text,text,text),public.delete_my_account() from public,anon;
+grant execute on function public.cookbook_is_member(uuid),public.cookbook_is_owner(uuid),public.cookbook_can_read(uuid),public.cookbook_can_read_recipe(uuid),public.cookbook_can_review(uuid),public.cookbook_can_read_review(uuid),public.cookbook_can_reply(uuid),public.cookbook_photo_owned(uuid),public.cookbook_photo_attachable(uuid,uuid),public.cookbook_photo_readable(uuid),public.cookbook_photo_unattached(uuid),public.cookbook_storage_readable(text),public.cookbook_storage_owned(text),public.cookbook_storage_unattached(text),public.cookbook_storage_orphaned(text),public.cookbook_can_report(text,uuid),public.cookbook_invite_partner(uuid,text),public.cookbook_accept_invitation(uuid),public.cookbook_accept_friendship(uuid),public.cookbook_my_memberships(),public.cookbook_get_planner(uuid),public.cookbook_save_planner(uuid,jsonb,integer),public.cookbook_search(text,text,text,text),public.delete_my_account() to authenticated;
 
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
 values('social-recipe-photos','social-recipe-photos',false,1500000,array['image/webp'])
@@ -452,6 +562,6 @@ on conflict(id) do update set public=false,file_size_limit=excluded.file_size_li
 create policy cookbook_photo_insert on storage.objects for insert to authenticated
   with check(bucket_id='social-recipe-photos' and public.cookbook_storage_owned(name));
 create policy cookbook_photo_select on storage.objects for select to authenticated
-  using(bucket_id='social-recipe-photos' and (public.cookbook_storage_owned(name) or public.cookbook_storage_readable(name)));
+  using(bucket_id='social-recipe-photos' and (public.cookbook_storage_owned(name) or public.cookbook_storage_readable(name) or public.cookbook_storage_orphaned(name)));
 create policy cookbook_photo_delete on storage.objects for delete to authenticated
-  using(bucket_id='social-recipe-photos' and public.cookbook_storage_owned(name) and public.cookbook_storage_unattached(name));
+  using(bucket_id='social-recipe-photos' and (public.cookbook_storage_owned(name) or public.cookbook_storage_orphaned(name)) and public.cookbook_storage_unattached(name));

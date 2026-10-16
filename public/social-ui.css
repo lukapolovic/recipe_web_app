@@ -40,3 +40,16 @@
 .trial-save .icon { width:14px; height:14px; }
 .paper-actions { flex-wrap:wrap; }
 .planned-meal > .trial-save { font:11px var(--sans); }
+
+/* Safety: reporting, account deletion and the legal links. */
+.report-button { font-size:12px; color:var(--muted); text-decoration-color:var(--line); }
+.review-card > .report-button, .reply > .report-button { display:inline-flex; margin-top:6px; }
+.recipe-credit { color:var(--muted); }
+.account-danger { margin-top:18px; font-size:13px; }
+.danger-text { color:var(--tomato, #a04b42); text-decoration-color:currentColor; }
+.delete-account-list { margin:12px 0 16px; padding-left:20px; display:grid; gap:6px; line-height:1.55; }
+.app-dialog .form-field + .form-field { margin-top:14px; }
+.legal-links { display:inline-flex; gap:14px; }
+.legal-links a, .legal-consent a { color:inherit; text-decoration:underline; text-underline-offset:3px; }
+.legal-consent { font-size:13px; color:var(--muted); margin:12px 0; line-height:1.5; }
+.auth-card > .legal-links { margin-top:18px; font-size:13px; color:var(--muted); }
