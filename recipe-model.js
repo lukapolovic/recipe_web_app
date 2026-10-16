@@ -37,11 +37,7 @@ export function validateRecipe(input) {
     const kcalPer100g = i.kcalPer100g == null ? null : number(i.kcalPer100g, 'Calories per 100 g', 0, 1000);
     if (kcalPer100g != null && !GRAMS_PER_UNIT[i.unit]) invalid('Calories per 100 g require an ingredient measured by weight.');
     const kcalPerUnit = i.kcalPerUnit == null ? null : number(i.kcalPerUnit, 'Calories per unit', 0, 100000);
-    let nutritionMatch = null;
-    if (i.nutritionMatch) {
-      nutritionMatch = { fdcId: number(i.nutritionMatch.fdcId, 'Food ID', 1, Number.MAX_SAFE_INTEGER, true), description: string(i.nutritionMatch.description, 'Matched food', 400), portion: string(i.nutritionMatch.portion, 'Matched portion', 200, true) };
-    }
-    return { name, quantity, unit: i.unit, note, kcalPer100g, kcalPerUnit, nutritionMatch };
+    return { name, quantity, unit: i.unit, note, kcalPer100g, kcalPerUnit };
   });
   if (!Array.isArray(input.instructions) || input.instructions.length < 1 || input.instructions.length > 100) invalid('Add between 1 and 100 instruction steps.');
   const instructions = input.instructions.map(step => string(step, 'Instruction', 2000));

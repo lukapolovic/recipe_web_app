@@ -4,7 +4,6 @@ import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import { extractHtml, extractText, parseIngredient, ImportError } from '../recipe-import.js';
 import { fetchPublicHtml, parsePublicUrl, isPublicAddress } from '../public-fetch.js';
-import { chooseFood, createNutritionService, portionGrams } from '../nutrition.js';
 import { validateRecipe, ValidationError } from '../recipe-model.js';
 import { nutritionFor, shoppingList } from '../public/recipe-math.js';
 import { createApp } from '../server.js';
@@ -89,35 +88,7 @@ test('recipe fetch pins the DNS answer and validates every redirect before conne
   await assert.rejects(fetchPublicHtml('https://example.com/recipe', { resolveHost, requestFor: () => fakeRequest({ status: 403 }) }), /HTTP 403/);
 });
 
-const food = { fdcId: 123, dataType: 'Foundation', description: 'Oats, rolled, raw', foodNutrients: [{ nutrientId: 1008, unitName: 'KCAL', value: 379 }] };
-test('USDA estimates preserve existing values, record matched foods, cache requests, and flag missing portions', async () => {
-  let calls = 0;
-  const service = createNutritionService({ fetcher: async url => {
-    calls++;
-    if (url.pathname.includes('/foods/search')) return { ok: true, json: async () => ({ foods: [food] }) };
-    return { ok: true, json: async () => food };
-  } });
-  const first = await service.estimate([{ name: 'Rolled oats', quantity: 100, unit: 'g' }, { name: 'Milk', quantity: 200, unit: 'g', kcalPer100g: 60 }]);
-  assert.equal(first.ingredients[0].kcalPer100g, 379);
-  assert.equal(first.ingredients[0].nutritionMatch.fdcId, 123);
-  assert.equal(first.ingredients[1].kcalPer100g, 60);
-  await service.estimate([{ name: 'Rolled oats', quantity: 200, unit: 'g' }]);
-  assert.equal(calls, 1);
-  const volume = await service.estimate([{ name: 'Rolled oats', quantity: 1, unit: 'cup' }]);
-  assert.ok(volume.warnings.some(w => w.includes('weight')));
-  assert.equal(volume.ingredients[0].kcalPerUnit, undefined);
-  assert.equal(chooseFood('Rice, dry', [{ ...food, description: 'Rice, cooked' }]), null);
-});
-
-test('nutrition API limits preserve the draft and supplied portion weights calculate per-unit calories', async () => {
-  const service = createNutritionService({ fetcher: async () => ({ status: 429, ok: false }) });
-  const result = await service.estimate([{ name: 'Oats', quantity: 100, unit: 'g' }]);
-  assert.match(result.warnings[0], /limit reached/);
-  assert.equal(result.ingredients[0].name, 'Oats');
-  const portions = { foodPortions: [{ amount: 1, gramWeight: 80, modifier: 'cup' }] };
-  assert.equal(portionGrams(portions, 'cup').grams, 80);
-  portions.foodPortions.push({ amount: 1, gramWeight: 90, modifier: 'cup' });
-  assert.equal(portionGrams(portions, 'cup'), null);
+test('per-unit calories and imperial shopping amounts calculate', () => {
   assert.equal(nutritionFor({ servings: 2, ingredients: [{ quantity: 2, unit: 'piece', kcalPerUnit: 100 }] }).perServing, 100);
   assert.ok(Math.abs(shoppingList([{ id: 1, servings: 1, title: 'Oats', ingredients: [{ name: 'Oats', unit: 'oz', quantity: 1 }] }], [{ recipeId: 1, servings: 1 }])[0].quantity - 28.349523125) < 0.00001);
 });
@@ -149,10 +120,4 @@ test('demo HTTP imports create reviewable drafts without saving, and failed impo
     assert.equal((await response.json()).recipe.instructions.length, 2);
     assert.equal((await request({ text: 'No recipe' })).status, 400);
   } finally { await new Promise(resolve => server.close(resolve)); }
-});
-
-test('food matching rejects unrelated foods and accepts the plain ingredient', () => {
-  assert.equal(chooseFood('Milk', [{ ...food, description: 'Milk, human' }]), null);
-  assert.equal(chooseFood('Water', [{ ...food, description: 'Water convolvulus,raw' }]), null);
-  assert.equal(chooseFood('Water', [{ ...food, description: 'Water, tap, drinking' }]).description, 'Water, tap, drinking');
 });

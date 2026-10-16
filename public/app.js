@@ -1,4 +1,3 @@
-import { PALETTES } from './palettes.js';
 import { APP_NAME } from './brand.js';
 import { CATEGORIES, UNITS, GRAMS_PER_UNIT } from './recipe-config.js';
 import { nutritionFor, shoppingList, displayAmount, checkKey } from './recipe-math.js';
@@ -13,17 +12,6 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ESCAPES[c]);
 const loadDemoData = () => import('./social-demo.js').then(module => module.demoData);
 const clone = value => structuredClone(value);
 const app = $('#app'), dialog = $('#app-dialog');
-const DESIGN_PREVIEW = location.pathname === '/design-preview.html';
-const PALETTE_KEY = 'cherichef-palette-v1';
-function applyPalette(id,persist=false) {
-  const palette=PALETTES.find(item=>item.id===id)||PALETTES[0];
-  document.documentElement.dataset.palette=palette.id;
-  if(persist&&!DESIGN_PREVIEW){try{localStorage.setItem(PALETTE_KEY,palette.id);}catch{}const url=new URL(location.href);url.searchParams.delete('palette');history.replaceState(null,'',url);}
-  return palette;
-}
-let savedPalette='';
-if(!DESIGN_PREVIEW){try{savedPalette=localStorage.getItem(PALETTE_KEY)||'';}catch{}}
-applyPalette(new URLSearchParams(location.search).get('palette')||savedPalette);
 
 const meats = ['Vegetarian', 'Chicken', 'Beef', 'Pork', 'Lamb', 'Fish', 'Seafood', 'Turkey', 'Mixed', 'Other'];
 let configured = false, feed = {}, user = null, profile = null;
@@ -82,7 +70,7 @@ const photoPending = new Map(), photoFailed = new Map(), photoQueue = [];
 const PHOTO_CONCURRENCY = 4, PHOTO_RETRY_MS = 5 * 60 * 1000;
 let photoEpoch = 0, photosActive = 0;
 function loadPhoto(id) {
-  if (DESIGN_PREVIEW || !id || photoCache.has(id)) return Promise.resolve();
+  if (!id || photoCache.has(id)) return Promise.resolve();
   if (photoPending.has(id)) return photoPending.get(id);
   const epoch = photoEpoch;
   const pending = store.fetchPhoto(id)
@@ -114,7 +102,7 @@ const photoObserver = typeof IntersectionObserver === 'function' ? new Intersect
   }
 }, { rootMargin: '800px 0px' }) : null;
 function hydratePhotos(root) {
-  if (DESIGN_PREVIEW || !root) return;
+  if (!root) return;
   for (const slot of root.querySelectorAll('template[data-photo]')) {
     const id = slot.dataset.photo;
     if (photoCache.has(id)) { showPhoto(id); continue; }
@@ -134,7 +122,7 @@ function showPhoto(id) {
   }
 }
 // The <img> to show once a private photo has loaded (attrs exclude src).
-function photoSlot(id, attrs) { return id && !DESIGN_PREVIEW ? `<template data-photo="${esc(id)}"><img ${attrs}></template>` : ''; }
+function photoSlot(id, attrs) { return id ? `<template data-photo="${esc(id)}"><img ${attrs}></template>` : ''; }
 function photoSrc(recipe) { return recipe?.imageId ? photoCache.get(recipe.imageId) || '' : recipe?.imageUrl?.startsWith('/demo-assets/') ? recipe.imageUrl : ''; }
 function bookPhoto(book) { return book.coverImageId ? photoCache.get(book.coverImageId) || '' : book.coverImage?.startsWith('/demo-assets/') ? book.coverImage : ''; }
 async function loadFeed(renderPage = true) {
@@ -158,7 +146,6 @@ const http = createHttpStore({ host });
 let store = http;
 const hydrateBook = id => store.hydrateBook(id);
 function nav(next, id = '') { view = next; selectedId = id; entering = true; if (next === 'recipe') servings = recipeById(id)?.servings || 2; render(); if(next==='search')runSearch(); window.scrollTo({ top:0, behavior:'smooth' }); }
-function herbDrawing() { return '<img src="/wood-assets/kitchen-table.svg" class="hero-illustration" alt="" aria-hidden="true">'; }
 function shell(content) {
   const menus = [['discover','compass','Discover'],['mine','book','Our cookbooks'],['following','heart','Following'],['friends','users','Friends'],['shopping','bag','Shopping list']];
   return `<div class="app-shell"><aside class="app-sidebar"><button aria-label="${esc(APP_NAME)}" class="brand" data-view="discover"><span class="brand-symbol">${icon('leaf')}</span><span>${esc(APP_NAME)}<small>GOOD FOOD. OUR PEOPLE.</small></span></button><nav class="sidebar-nav" aria-label="Main navigation">${menus.map(([v,i,n])=>`<button aria-label="${n}" title="${n}" class="nav-link ${view===v?'active':''}" data-view="${v}" ${view===v?'aria-current="page"':''}>${icon(i)}<span>${n}</span></button>`).join('')}</nav><div class="sidebar-note"><span class="little-heart">♡</span><p>The best recipes<br>have a little history.</p></div><div class="sidebar-bottom"><button class="user-chip" aria-label="My profile" data-action="profile" data-id="${user?.id}">${avatar(user?.id)}<span><strong>${esc(displayName(profile))}</strong><small>@${esc(profile?.username)}</small></span></button><button class="icon-button" data-action="logout" aria-label="${store.demo?'Show sign in':'Sign out'}">${icon('logout')}</button></div></aside><div class="app-content"><header class="topbar"><button class="mobile-brand" data-view="discover">${esc(APP_NAME)}</button><div class="global-search">${icon('search')}<label class="visually-hidden" for="global-search">Search people, cookbooks and recipes</label><input id="global-search" type="search" maxlength="100" placeholder="Find a recipe, a cookbook, a kindred cook…" value="${esc(search)}"><kbd>↵</kbd></div><button class="button primary small" data-action="new-book">${icon('plus')}New cookbook</button><button class="mobile-user" data-action="profile" data-id="${user?.id}" aria-label="My profile">${avatar(user?.id)}</button></header>${store.demo?'<div class="demo-banner"><span>Preview kitchen · Sample people and cookbooks. Changes are saved locally on this device.</span><button data-action="show-auth">Sign in / join</button></div>':''}<main class="page-body${entering?' page-enter':''}" id="main">${content}</main><footer class="app-footer"><span>Made for a table of two. And the people around it.</span><span>${esc(APP_NAME)} · your little cookbook club</span></footer></div></div>`;
@@ -177,7 +164,7 @@ function empty(title, text, action = '') { return `<div class="empty-state">${ic
 function discover() {
   const books=feed.cookbooks.filter(b=>b.visibility==='public'||!memberOf(b));
   const list=books.length?books:feed.cookbooks;
-  return `<section class="welcome-hero"><div class="hero-copy"><span class="eyebrow">A COOKBOOK FOR US. A LITTLE INSPIRATION FROM EVERYONE.</span><h1>Made with love.<br><em>Passed around the table.</em></h1><p>Keep your favourites together. Borrow a little inspiration.<br>Make something worth remembering.</p><div class="hero-actions"><button class="button primary" data-action="new-book">Start our cookbook${icon('arrow')}</button><button class="text-button" data-view="mine">Visit our kitchen</button></div></div>${herbDrawing()}</section><section><div class="section-head"><div><span class="eyebrow">WELL-LOVED & WELL-SHARED</span><h2>Cookbooks from the community</h2></div><span class="handwritten">a pinch of inspiration ♡</span></div><div class="cookbook-grid">${list.slice(0,4).map(cookbookCard).join('')||empty('A fresh page.','Be the first to share a cookbook with the club.')}</div></section><section class="page-section"><div class="section-head"><div><span class="eyebrow">SOMETHING GOOD IS COOKING</span><h2>Recipes to fall for</h2></div><button class="text-button" data-view="search">Explore all recipes${icon('arrow')}</button></div><div class="recipe-grid">${feed.recipes.slice(0,4).map(recipeCard).join('')||empty('Your next favourite is waiting.','Add a recipe to get things cooking.')}</div></section>`;
+  return `<section class="welcome-hero"><div class="hero-copy"><span class="eyebrow">A COOKBOOK FOR US. A LITTLE INSPIRATION FROM EVERYONE.</span><h1>Made with love.<br><em>Passed around the table.</em></h1><p>Keep your favourites together. Borrow a little inspiration.<br>Make something worth remembering.</p><div class="hero-actions"><button class="button primary" data-action="new-book">Start our cookbook${icon('arrow')}</button><button class="text-button" data-view="mine">Visit our kitchen</button></div></div></section><section><div class="section-head"><div><span class="eyebrow">WELL-LOVED & WELL-SHARED</span><h2>Cookbooks from the community</h2></div><span class="handwritten">a pinch of inspiration ♡</span></div><div class="cookbook-grid">${list.slice(0,4).map(cookbookCard).join('')||empty('A fresh page.','Be the first to share a cookbook with the club.')}</div></section><section class="page-section"><div class="section-head"><div><span class="eyebrow">SOMETHING GOOD IS COOKING</span><h2>Recipes to fall for</h2></div><button class="text-button" data-view="search">Explore all recipes${icon('arrow')}</button></div><div class="recipe-grid">${feed.recipes.slice(0,4).map(recipeCard).join('')||empty('Your next favourite is waiting.','Add a recipe to get things cooking.')}</div></section>`;
 }
 function collection(mode) {
   const mine=mode==='mine', books=mine?ownBooks():feed.cookbooks.filter(b=>followExists(b.id));
@@ -242,7 +229,7 @@ async function runSearch() {
 }
 function profilePage() {
   const p=person(selectedId), own=p.id===user.id;
-  return `<section class="profile-hero">${avatar(p.id)}<span class="eyebrow">A FELLOW COOK IN THE CLUB</span><h1>${esc(displayName(p))}</h1><p class="muted">@${esc(p.username)}</p><p>${esc(p.bio||'A few favourite recipes, and a little room for new traditions.')}</p>${own?'<div class="profile-actions"><button class="button" data-action="edit-profile">Edit profile</button><button class="button" data-action="appearance">Kitchen style</button><button class="button subtle" data-action="logout">Sign out</button></div>':`<button class="button" data-action="add-friend" data-id="${p.id}">${icon('users')}Add friend</button>`}</section><div class="section-head"><h2>${own?'Our cookbooks':`${esc(displayName(p).split(' ')[0])}'s cookbooks`}</h2></div><div class="cookbook-grid">${feed.cookbooks.filter(b=>b.ownerId===p.id||acceptedMembers(b.id).some(m=>m.userId===p.id)).map(cookbookCard).join('')||empty('A cookbook is on its way.','There are no cookbooks visible here yet.')}</div>`;
+  return `<section class="profile-hero">${avatar(p.id)}<span class="eyebrow">A FELLOW COOK IN THE CLUB</span><h1>${esc(displayName(p))}</h1><p class="muted">@${esc(p.username)}</p><p>${esc(p.bio||'A few favourite recipes, and a little room for new traditions.')}</p>${own?'<div class="profile-actions"><button class="button" data-action="edit-profile">Edit profile</button><button class="button subtle" data-action="logout">Sign out</button></div>':`<button class="button" data-action="add-friend" data-id="${p.id}">${icon('users')}Add friend</button>`}</section><div class="section-head"><h2>${own?'Our cookbooks':`${esc(displayName(p).split(' ')[0])}'s cookbooks`}</h2></div><div class="cookbook-grid">${feed.cookbooks.filter(b=>b.ownerId===p.id||acceptedMembers(b.id).some(m=>m.userId===p.id)).map(cookbookCard).join('')||empty('A cookbook is on its way.','There are no cookbooks visible here yet.')}</div>`;
 }
 function shoppingPage() {
   const books=ownBooks();
@@ -258,7 +245,6 @@ function render() {
   app.innerHTML=shell((pages[view]||discover)());
   entering=false;
   hydratePhotos(app);
-  if(DESIGN_PREVIEW)app.inert=true;
 }
 function optionList(values, current) { return values.map(value=>`<option value="${esc(value)}" ${value===current?'selected':''}>${esc(value)}</option>`).join(''); }
 function openDialog(title, content, actions='') { dialog.innerHTML=`<div class="dialog-header"><div><span class="eyebrow">A LITTLE SOMETHING FOR OUR KITCHEN</span><h2 id="dialog-title">${title}</h2></div><button class="icon-button" data-action="close-dialog" aria-label="Close dialog">${icon('close')}</button></div>${content}${actions}`;if(!dialog.open)dialog.showModal(); }
@@ -268,7 +254,7 @@ function openBookEditor(id='') {
 }
 function ingredientRow(i={},index=0) {
   const unit=i.unit||'g', mass=!!GRAMS_PER_UNIT[unit];
-  return `<div class="ingredient-row" data-original="${esc(JSON.stringify(i))}"><label class="form-field">Ingredient<input data-ingredient="name" required maxlength="120" aria-label="Ingredient ${index+1}" placeholder="e.g. Cherry tomatoes" value="${esc(i.name)}"></label><label class="form-field">Amount<input type="number" data-ingredient="quantity" required min="0.001" max="1000000" step="any" aria-label="Amount ${index+1}" value="${esc(i.quantity)}"></label><label class="form-field">Unit<select data-ingredient="unit" aria-label="Unit ${index+1}">${optionList(UNITS,unit)}</select></label><label class="form-field">Preparation<input data-ingredient="note" maxlength="200" aria-label="Preparation ${index+1}" placeholder="optional" value="${esc(i.note)}"></label><button type="button" class="icon-button" data-action="remove-ingredient" aria-label="Remove ingredient ${index+1}">${icon('close')}</button><details class="ingredient-calories"><summary>Optional calories</summary><label class="form-field"><span data-calorie-label>${mass?'kcal per 100 g':`kcal per ${esc(unit)}`}</span><input data-ingredient="calories" type="number" min="0" max="${mass?1000:100000}" step="any" value="${esc(mass?i.kcalPer100g:i.kcalPerUnit)}" aria-label="Calories ${index+1}"></label></details></div>`;
+  return `<div class="ingredient-row"><label class="form-field">Ingredient<input data-ingredient="name" required maxlength="120" aria-label="Ingredient ${index+1}" placeholder="e.g. Cherry tomatoes" value="${esc(i.name)}"></label><label class="form-field">Amount<input type="number" data-ingredient="quantity" required min="0.001" max="1000000" step="any" aria-label="Amount ${index+1}" value="${esc(i.quantity)}"></label><label class="form-field">Unit<select data-ingredient="unit" aria-label="Unit ${index+1}">${optionList(UNITS,unit)}</select></label><label class="form-field">Preparation<input data-ingredient="note" maxlength="200" aria-label="Preparation ${index+1}" placeholder="optional" value="${esc(i.note)}"></label><button type="button" class="icon-button" data-action="remove-ingredient" aria-label="Remove ingredient ${index+1}">${icon('close')}</button><details class="ingredient-calories"><summary>Optional calories</summary><label class="form-field"><span data-calorie-label>${mass?'kcal per 100 g':`kcal per ${esc(unit)}`}</span><input data-ingredient="calories" type="number" min="0" max="${mass?1000:100000}" step="any" value="${esc(mass?i.kcalPer100g:i.kcalPerUnit)}" aria-label="Calories ${index+1}"></label></details></div>`;
 }
 function stepRow(step='',i=0) { return `<div class="step-row"><span>${i+1}</span><label class="form-field"><span class="visually-hidden">Instruction ${i+1}</span><textarea data-step required maxlength="2000" placeholder="A little of this, a little of that…">${esc(step)}</textarea></label><button class="icon-button" type="button" data-action="remove-step" aria-label="Remove step ${i+1}">${icon('close')}</button></div>`; }
 async function openRecipeEditor(id='',bookId='', imported=null) {
@@ -287,8 +273,7 @@ function readRecipeDraft() {
   const ingredients=$$('.ingredient-row',form).map(row=>{
     const val=key=>$(`[data-ingredient="${key}"]`,row).value;
     const unit=val('unit'), calories=val('calories')===''?null:Number(val('calories'));
-    const original=JSON.parse(row.dataset.original||'{}');
-    return {name:val('name').trim(),quantity:val('quantity')===''?null:Number(val('quantity')),unit,note:val('note').trim(),kcalPer100g:GRAMS_PER_UNIT[unit]?calories:null,kcalPerUnit:GRAMS_PER_UNIT[unit]?null:calories,nutritionMatch:original.name===val('name')&&original.unit===unit?original.nutritionMatch:null};
+    return {name:val('name').trim(),quantity:val('quantity')===''?null:Number(val('quantity')),unit,note:val('note').trim(),kcalPer100g:GRAMS_PER_UNIT[unit]?calories:null,kcalPerUnit:GRAMS_PER_UNIT[unit]?null:calories};
   });
   const result={title:values.get('title'),description:values.get('description'),cookbookId:values.get('cookbookId')||draft.cookbookId,category:values.get('category'),meatType:values.get('meatType'),tags:[...new Set(values.get('tags').split(',').map(v=>v.trim()).filter(Boolean))].slice(0,12),servings:Number(values.get('servings')),minutes:Number(values.get('minutes')),ingredients,instructions:$$('[data-step]',form).map(t=>t.value.trim()),imageId:draft.imageId||'',sourceUrl:draft.sourceUrl||'',sourceCaloriesPerServing:null};
   const signature=r=>JSON.stringify([r.servings,r.ingredients.map(i=>[i.name.trim().toLowerCase(),i.quantity,i.unit,i.kcalPer100g??null,i.kcalPerUnit??null])]);
@@ -356,7 +341,7 @@ async function mutate(path,method,input) {const result=await store.mutate(path,m
 async function afterMutation(){searchResult=null;if(!store.demo)await loadFeed(false);render();}
 function formError(form,message){const field=$('.form-error',form);if(field){field.textContent=message;field.hidden=false;}else notify(message);}
 async function submitForm(event){
-  event.preventDefault();if(DESIGN_PREVIEW)return;const form=event.target,values=new FormData(form),button=$('button[type="submit"]',form);if(button)button.disabled=true;
+  event.preventDefault();const form=event.target,values=new FormData(form),button=$('button[type="submit"]',form);if(button)button.disabled=true;
   const error=$('.form-error',form);if(error)error.hidden=true;
   try{
     if(form.id==='auth-form'){
@@ -396,14 +381,10 @@ async function submitForm(event){
   }catch(problem){formError(form,problem.message);}finally{if(button)button.disabled=false;}
 }
 function renderAuth(message=''){
-  app.innerHTML=`<main class="auth-shell"><section class="auth-art"><div class="brand auth-brand">${icon('leaf')}<span>${esc(APP_NAME)}</span></div><span class="eyebrow">A COOKBOOK FOR US</span><h1>A little love.<br>A little joy.<br>A place for our recipes.</h1><p>For the dinners that become traditions,<br>and the people who make them special.</p>${herbDrawing()}<span class="handwritten">good food tastes better together</span></section><section class="auth-card"><div class="auth-tabs"><button class="${authMode==='login'?'active':''}" data-auth-mode="login">Welcome back</button><button class="${authMode==='signup'?'active':''}" data-auth-mode="signup">Join the table</button></div><span class="eyebrow">${authMode==='signup'?'THERE’S A PLACE FOR YOU':'YOUR KITCHEN IS WAITING'}</span><h2>${authMode==='signup'?'Start a new tradition.':'Come on in.'}</h2><p class="muted">${authMode==='signup'?'Create your account. Invite your person. Share what you love.':'Sign in to your recipes, your people, and a little inspiration.'}</p>${message?`<p class="notice">${esc(message)}</p>`:''}<form id="auth-form">${authMode==='signup'?'<label class="form-field">Your name<input name="displayName" required maxlength="80" autocomplete="name" placeholder="The name at your table"></label><label class="form-field">Username<input name="username" required pattern="[a-z0-9_]{3,30}" maxlength="30" autocomplete="username" placeholder="e.g. flourandflowers"><small>3–30 lowercase letters, numbers or underscores.</small></label>':''}<label class="form-field">Email<input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com"></label><label class="form-field">Password<input name="password" type="password" minlength="8" maxlength="128" required autocomplete="${authMode==='signup'?'new-password':'current-password'}" placeholder="At least 8 characters"></label><p class="form-error" role="alert" hidden></p><button type="submit" class="button primary full">${authMode==='signup'?'Create my account':'Sign in'}${icon('arrow')}</button></form>${!configured?'<p class="notice">The local preview uses sample people and cookbooks. Real accounts require your Supabase project.</p><button class="button full" data-action="enter-demo">Explore the preview kitchen</button>':''}</section></main>`;
+  app.innerHTML=`<main class="auth-shell"><section class="auth-art"><div class="brand auth-brand">${icon('leaf')}<span>${esc(APP_NAME)}</span></div><span class="eyebrow">A COOKBOOK FOR US</span><h1>A little love.<br>A little joy.<br>A place for our recipes.</h1><p>For the dinners that become traditions,<br>and the people who make them special.</p><span class="handwritten">good food tastes better together</span></section><section class="auth-card"><div class="auth-tabs"><button class="${authMode==='login'?'active':''}" data-auth-mode="login">Welcome back</button><button class="${authMode==='signup'?'active':''}" data-auth-mode="signup">Join the table</button></div><span class="eyebrow">${authMode==='signup'?'THERE’S A PLACE FOR YOU':'YOUR KITCHEN IS WAITING'}</span><h2>${authMode==='signup'?'Start a new tradition.':'Come on in.'}</h2><p class="muted">${authMode==='signup'?'Create your account. Invite your person. Share what you love.':'Sign in to your recipes, your people, and a little inspiration.'}</p>${message?`<p class="notice">${esc(message)}</p>`:''}<form id="auth-form">${authMode==='signup'?'<label class="form-field">Your name<input name="displayName" required maxlength="80" autocomplete="name" placeholder="The name at your table"></label><label class="form-field">Username<input name="username" required pattern="[a-z0-9_]{3,30}" maxlength="30" autocomplete="username" placeholder="e.g. flourandflowers"><small>3–30 lowercase letters, numbers or underscores.</small></label>':''}<label class="form-field">Email<input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com"></label><label class="form-field">Password<input name="password" type="password" minlength="8" maxlength="128" required autocomplete="${authMode==='signup'?'new-password':'current-password'}" placeholder="At least 8 characters"></label><p class="form-error" role="alert" hidden></p><button type="submit" class="button primary full">${authMode==='signup'?'Create my account':'Sign in'}${icon('arrow')}</button></form>${!configured?'<p class="notice">The local preview uses sample people and cookbooks. Real accounts require your Supabase project.</p><button class="button full" data-action="enter-demo">Explore the preview kitchen</button>':''}</section></main>`;
 }
 async function enterDemo(){store=await createDemoStore({loadDemoData,notify});view='discover';await loadFeed();}
 async function bootstrap(){
-  if(DESIGN_PREVIEW){
-    store=await createDemoStore({loadDemoData,preview:true});applyLoaded(await store.loadFeed());
-    view=new URLSearchParams(location.search).get('designPreview')==='recipe'?'recipe':'discover';selectedId=view==='recipe'?'demo-lemon-chicken':'';servings=recipeById(selectedId)?.servings||2;render();return;
-  }
   try{const config=await http.config();configured=!!config.configured;
     if(!configured){await enterDemo();return;}
     store=http;
@@ -414,7 +395,6 @@ async function bootstrap(){
 function downloadShoppingList(){const rows=shoppingList(feed.recipes,planner.cart);const text=[`${APP_NAME.toLocaleUpperCase()} — OUR SHOPPING LIST`,bookById(plannerBook)?.name||'', '',...rows.map(row=>`${planner.checked[checkKey(row)]===true?'[x]':'[ ]'} ${displayAmount(row.quantity,row.unit)} ${row.name}${row.notes.length?' · '+row.notes.join('; '):''}`)].join('\n');const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='our-shopping-list.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 document.addEventListener('submit',submitForm);
 document.addEventListener('click',async event=>{
-  if(DESIGN_PREVIEW)return;
   const auth=event.target.closest('[data-auth-mode]');if(auth){authMode=auth.dataset.authMode;renderAuth();return;}
   const navigation=event.target.closest('[data-view]');if(navigation){if(navigation.dataset.view==='shopping'&&ownBooks().length){try{await getPlan(plannerBook||ownBooks()[0]?.id);}catch(error){notify(error.message);return;}}nav(navigation.dataset.view);return;}
   const button=event.target.closest('[data-action]');if(!button||button.disabled)return;const action=button.dataset.action,id=button.dataset.id;
@@ -423,8 +403,6 @@ document.addEventListener('click',async event=>{
     else if(action==='recipe')nav('recipe',id);
     else if(action==='profile')nav('profile',id);
     else if(action==='new-book')openBookEditor();
-    else if(action==='appearance')openDialog('Make this kitchen yours.',`<div class="dialog-content"><div class="palette-options">${PALETTES.map(palette=>`<button class="palette-option" data-action="choose-palette" data-id="${palette.id}" data-palette-card="${palette.id}" aria-pressed="${document.documentElement.dataset.palette===palette.id}"><span class="palette-swatches">${palette.colors.map((color,index)=>`<span data-swatch="${index}" aria-label="${esc(color.name)} ${color.hex}"></span>`).join('')}</span><strong>${esc(palette.name)}</strong><small>${esc(palette.description)}</small></button>`).join('')}</div><p class="form-hint">Your choice is remembered on this device.</p><a class="text-button" href="/designs.html">Compare all three designs →</a></div>`);
-    else if(action==='choose-palette'){applyPalette(id,true);dialog.close();notify('Your kitchen has a new style.');}
     else if(action==='edit-book')openBookEditor(id);
     else if(action==='add-recipe')await openRecipeEditor('',id);
     else if(action==='edit-recipe')await openRecipeEditor(id);
@@ -461,10 +439,9 @@ document.addEventListener('click',async event=>{
   finally{if(button.isConnected)button.disabled=false;}
 });
 let searchTimer;
-document.addEventListener('input',event=>{if(DESIGN_PREVIEW)return;if(event.target.id==='global-search'){search=event.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{view='search';renderMain(searchPage);$$('.nav-link').forEach(link=>link.classList.remove('active'));runSearch();},180);}});
-document.addEventListener('keydown',event=>{if(DESIGN_PREVIEW)return;if(event.target.id==='global-search'&&event.key==='Enter'){clearTimeout(searchTimer);nav('search');$('#global-search')?.focus();}});
+document.addEventListener('input',event=>{if(event.target.id==='global-search'){search=event.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{view='search';renderMain(searchPage);$$('.nav-link').forEach(link=>link.classList.remove('active'));runSearch();},180);}});
+document.addEventListener('keydown',event=>{if(event.target.id==='global-search'&&event.key==='Enter'){clearTimeout(searchTimer);nav('search');$('#global-search')?.focus();}});
 document.addEventListener('change',async event=>{
-  if(DESIGN_PREVIEW)return;
   const target=event.target;
   try{
     if(target.id==='category-filter'){category=target.value;render();await runSearch();}
@@ -483,5 +460,5 @@ dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const bo
 // Background refresh. Re-render only when something actually changed, so an
 // idle page keeps its scroll position, open details and loaded images.
 const feedSignature=()=>JSON.stringify([feed.profiles,feed.cookbooks,feed.recipes,feed.friendships,feed.follows,feed.reviews,feed.replies,feed.memberships,view==='shopping'?planner:null]);
-setInterval(async()=>{if(DESIGN_PREVIEW||store.demo||!user||dialog.open||document.visibilityState!=='visible')return;try{const focused=document.activeElement?.tagName;if(['INPUT','TEXTAREA','SELECT'].includes(focused))return;const before=feedSignature();await loadFeed(false);if(view==='shopping'&&plannerBook)await getPlan(plannerBook);if(feedSignature()!==before)render();}catch{}},30000);
+setInterval(async()=>{if(store.demo||!user||dialog.open||document.visibilityState!=='visible')return;try{const focused=document.activeElement?.tagName;if(['INPUT','TEXTAREA','SELECT'].includes(focused))return;const before=feedSignature();await loadFeed(false);if(view==='shopping'&&plannerBook)await getPlan(plannerBook);if(feedSignature()!==before)render();}catch{}},30000);
 await bootstrap();
