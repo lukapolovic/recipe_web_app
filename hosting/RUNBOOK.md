@@ -37,8 +37,7 @@ project URL) and `<app>` is your Vercel address, for example
    tables, row-level security policies, functions (including `keepalive()`), the
    private storage bucket and its policies. Run it once on an empty project: it is
    not meant to be run twice. (If you ran an older copy before the keepalive was
-   added, run only the block after the `Keepalive.` comment at the end of the
-   file.)
+   added, run only the short `Keepalive.` block near the top of the file.)
 3. Open **Storage**. Confirm the bucket `social-recipe-photos` exists and is
    marked **Private**. Do not make it public.
 4. Open **Project Settings → API Keys** (or **Connect**). Note the **Project URL**

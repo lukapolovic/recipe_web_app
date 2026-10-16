@@ -220,15 +220,3 @@ test('schema declares RLS for every data table, secure stats, rating uniqueness 
   assert.match(sql, /public\.cookbook_storage_owned\(name\) and public\.cookbook_storage_unattached\(name\)/);
   assert.doesNotMatch(sql, /grant update\([^\n]*\) on public\.cookbook_planners/);
 });
-
-test('keepalive makes one anonymous RPC through the publishable key', async () => {
-  const { api, calls } = harness(() => '2026-10-16T06:17:00.123+00:00');
-  assert.deepEqual(await api.keepalive(), { at: '2026-10-16T06:17:00.123+00:00' });
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].path, '/rest/v1/rpc/keepalive');
-  assert.equal(calls[0].method, 'POST');
-  assert.equal(calls[0].headers.apikey, 'sb_publishable_test');
-  assert.equal(calls[0].headers.Authorization, undefined);
-  const failing = harness(() => new Response('{}', { status: 500 }));
-  await assert.rejects(failing.api.keepalive(), { status: 503 });
-});

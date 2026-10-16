@@ -4,6 +4,15 @@
 -- Never give the web app a service-role / secret key: every data request uses
 -- the signed-in user's access token and the row-level policies below.
 
+-- ---------------------------------------------------------------------------
+-- Keepalive. The daily Vercel Cron (GET /api/cron/keepalive) calls this through
+-- the publishable key so the Free plan sees database activity and does not
+-- pause the project. It reads nothing and runs with the caller's (anon) rights.
+create or replace function public.keepalive() returns timestamptz
+language sql stable security invoker set search_path = '' as $$ select now(); $$;
+revoke all on function public.keepalive() from public;
+grant execute on function public.keepalive() to anon, authenticated;
+
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text not null unique check (username ~ '^[a-z0-9_]{3,30}$'),
@@ -455,12 +464,3 @@ create policy cookbook_photo_select on storage.objects for select to authenticat
   using(bucket_id='social-recipe-photos' and (public.cookbook_storage_owned(name) or public.cookbook_storage_readable(name)));
 create policy cookbook_photo_delete on storage.objects for delete to authenticated
   using(bucket_id='social-recipe-photos' and public.cookbook_storage_owned(name) and public.cookbook_storage_unattached(name));
-
--- ---------------------------------------------------------------------------
--- Keepalive. The daily Vercel Cron (GET /api/cron/keepalive) calls this through
--- the publishable key so the Free plan sees database activity and does not
--- pause the project. It reads nothing and runs with the caller's (anon) rights.
-create or replace function public.keepalive() returns timestamptz
-language sql stable security invoker set search_path = '' as $$ select now(); $$;
-revoke all on function public.keepalive() from public;
-grant execute on function public.keepalive() to anon, authenticated;

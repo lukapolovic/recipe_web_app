@@ -98,6 +98,11 @@ export function createApp({
         const origin = request.headers.origin;
         if (origin && origin !== `${protocol}://${request.headers.host}`) throw new HttpError(403, 'Cross-origin requests are not allowed.');
         if (request.headers['sec-fetch-site'] === 'cross-site') throw new HttpError(403, 'Cross-site requests are not allowed.');
+        if (url.pathname === '/api/social/config' && !social) return json(response, 200, { configured: false, authRequired: false, nutritionEnabled: false, appName: APP_NAME });
+        if (!social && url.pathname.startsWith('/api/social/')) throw new HttpError(503, 'Connect your Supabase project before creating real accounts or sharing cookbooks.');
+        const route = url.pathname.startsWith(`${base}/`) ? url.pathname.slice(base.length) : '';
+        // Signing in comes first, so unauthenticated requests stop before any body is read.
+        const who = async () => ({ user: social ? await social.authenticate(request.headers) : undefined, headers: request.headers });
         // Vercel Cron sends Authorization: Bearer $CRON_SECRET. Without a secret
         // configured the route stays closed rather than open to anyone.
         if (url.pathname === '/api/cron/keepalive') {
@@ -107,11 +112,6 @@ export function createApp({
           if (!social) throw new HttpError(503, 'Connect your Supabase project before enabling the keepalive.');
           return json(response, 200, { ok: true, ...await social.keepalive() });
         }
-        if (url.pathname === '/api/social/config' && !social) return json(response, 200, { configured: false, authRequired: false, nutritionEnabled: false, appName: APP_NAME });
-        if (!social && url.pathname.startsWith('/api/social/')) throw new HttpError(503, 'Connect your Supabase project before creating real accounts or sharing cookbooks.');
-        const route = url.pathname.startsWith(`${base}/`) ? url.pathname.slice(base.length) : '';
-        // Signing in comes first, so unauthenticated requests stop before any body is read.
-        const who = async () => ({ user: social ? await social.authenticate(request.headers) : undefined, headers: request.headers });
         if (route === '/import' && request.method === 'POST') {
           const caller = await who();
           if (!social && importBusy) throw new HttpError(429, 'An import is already running. Please wait.');
