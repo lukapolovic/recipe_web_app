@@ -455,3 +455,12 @@ create policy cookbook_photo_select on storage.objects for select to authenticat
   using(bucket_id='social-recipe-photos' and (public.cookbook_storage_owned(name) or public.cookbook_storage_readable(name)));
 create policy cookbook_photo_delete on storage.objects for delete to authenticated
   using(bucket_id='social-recipe-photos' and public.cookbook_storage_owned(name) and public.cookbook_storage_unattached(name));
+
+-- ---------------------------------------------------------------------------
+-- Keepalive. The daily Vercel Cron (GET /api/cron/keepalive) calls this through
+-- the publishable key so the Free plan sees database activity and does not
+-- pause the project. It reads nothing and runs with the caller's (anon) rights.
+create or replace function public.keepalive() returns timestamptz
+language sql stable security invoker set search_path = '' as $$ select now(); $$;
+revoke all on function public.keepalive() from public;
+grant execute on function public.keepalive() to anon, authenticated;

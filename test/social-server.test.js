@@ -281,3 +281,40 @@ test('a signed-in photo copy is made through the adapter for the caller, and unr
     assert.equal((await request(`/api/social/photos/${PHOTO}/copy`, { method: 'POST', body: {} })).status, 404);
   });
 });
+
+test('keepalive cron requires the exact CRON_SECRET bearer before pinging the database', async () => {
+  let pings = 0;
+  const { api, events } = socialMock({ keepalive: async () => { pings++; return { at: '2026-10-16T06:17:00Z' }; } });
+  await withServer({ socialApi: api, cronSecret: 'cron-secret-value' }, async ({ request }) => {
+    for (const headers of [{}, { Authorization: 'Bearer wrong' }, { Authorization: 'Bearer cron-secret-value-and-more' }, { Authorization: 'cron-secret-value' }]) {
+      assert.equal((await request('/api/cron/keepalive', { token: false, headers })).status, 401);
+    }
+    // A user session token is not the cron secret.
+    assert.equal((await request('/api/cron/keepalive')).status, 401);
+    assert.equal(pings, 0);
+    const response = await request('/api/cron/keepalive', { token: false, headers: { Authorization: 'Bearer cron-secret-value' } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(await response.json(), { ok: true, at: '2026-10-16T06:17:00Z' });
+    assert.equal(pings, 1);
+    assert.equal((await request('/api/cron/keepalive', { method: 'POST', body: {}, token: false, headers: { Authorization: 'Bearer cron-secret-value' } })).status, 405);
+    // The same-origin guard still applies to the cron route.
+    assert.equal((await request('/api/cron/keepalive', { token: false, headers: { Authorization: 'Bearer cron-secret-value', Origin: 'https://untrusted.example' } })).status, 403);
+    assert.equal((await request('/api/cron/keepalive', { token: false, headers: { Authorization: 'Bearer cron-secret-value', 'Sec-Fetch-Site': 'cross-site' } })).status, 403);
+    assert.equal(pings, 1);
+    assert.deepEqual(events, []);
+  });
+});
+
+test('keepalive cron stays closed when CRON_SECRET is not configured', async () => {
+  let pings = 0;
+  const { api } = socialMock({ keepalive: async () => { pings++; return {}; } });
+  for (const cronSecret of [undefined, '']) {
+    await withServer({ socialApi: api, cronSecret }, async ({ request }) => {
+      for (const headers of [{}, { Authorization: 'Bearer ' }, { Authorization: 'Bearer undefined' }]) {
+        assert.equal((await request('/api/cron/keepalive', { token: false, headers })).status, 503);
+      }
+    });
+  }
+  assert.equal(pings, 0);
+});
