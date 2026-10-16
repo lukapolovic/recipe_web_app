@@ -2,7 +2,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP, BlockList } from 'node:net';
 import http from 'node:http';
 import https from 'node:https';
-import { ImportError } from './recipe-import.js';
+import { ImportError } from './import-error.js';
 
 const blocked = new BlockList();
 for (const [address, prefix] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 3]]) blocked.addSubnet(address, prefix, 'ipv4');
@@ -25,7 +25,7 @@ export function parsePublicUrl(input) {
   url.hash = '';
   return url;
 }
-export async function fetchPublicHtml(input, { resolveHost = lookup, requestFor = protocol => protocol === 'https:' ? https.request : http.request } = {}) {
+async function fetchPublicResource(input, { kind = 'html', resolveHost = lookup, requestFor = protocol => protocol === 'https:' ? https.request : http.request } = {}) {
   const signal = AbortSignal.timeout(15000);
   let url = parsePublicUrl(input);
   try {
@@ -42,7 +42,7 @@ export async function fetchPublicHtml(input, { resolveHost = lookup, requestFor 
       const result = await new Promise((resolve, reject) => {
         const request = requestFor(url.protocol)(url, {
           signal,
-          headers: { 'User-Agent': 'Pantry/0.2 recipe importer', Accept: 'text/html,application/xhtml+xml', 'Accept-Encoding': 'identity' },
+          headers: { 'User-Agent': 'Pantry/0.2 recipe importer', Accept: kind === 'html' ? 'text/html,application/xhtml+xml' : 'image/jpeg,image/png,image/webp', 'Accept-Encoding': 'identity' },
           // Pin the validated DNS answer for this connection, preserving TLS host verification.
           lookup: (_host, options, callback) => options.all ? callback(null, [address]) : callback(null, address.address, address.family),
         }, response => {
@@ -50,22 +50,24 @@ export async function fetchPublicHtml(input, { resolveHost = lookup, requestFor 
           if (response.statusCode < 200 || response.statusCode >= 300) {
             response.resume(); return reject(new ImportError(`The website could not be read (HTTP ${response.statusCode}). Paste the recipe text instead.`));
           }
-          if (!/^(?:text\/html|application\/xhtml\+xml)\b/i.test(response.headers['content-type'] || '')) {
-            response.resume(); return reject(new ImportError('This link is not an HTML recipe page. Paste the recipe text instead.'));
+          const contentType = (response.headers['content-type'] || '').split(';')[0].trim();
+          const supported = kind === 'html' ? /^(?:text\/html|application\/xhtml\+xml)$/i.test(contentType) : /^image\/(?:jpeg|png|webp)$/i.test(contentType);
+          if (!supported) {
+            response.resume(); return reject(new ImportError(kind === 'html' ? 'This link is not an HTML recipe page. Paste the recipe text instead.' : 'The recipe photo is not a supported image.'));
           }
           const chunks = []; let size = 0;
           response.on('data', chunk => {
             size += chunk.length;
-            if (size > 4 * 1024 * 1024) { response.destroy(new ImportError('This page is too large. Paste the recipe text instead.')); return; }
+            if (size > (kind === 'html' ? 4 : 3) * 1024 * 1024) { response.destroy(new ImportError('This page is too large. Paste the recipe text instead.')); return; }
             chunks.push(chunk);
           });
-          response.on('end', () => resolve({ html: Buffer.concat(chunks).toString('utf8') }));
+          response.on('end', () => resolve({ data: Buffer.concat(chunks), contentType }));
           response.on('error', reject);
         });
         request.on('error', reject);
         request.end();
       });
-      if ('html' in result) return { html: result.html, url: url.href };
+      if ('data' in result) return { ...result, url: url.href };
       if (!result.redirect) throw new ImportError('The website returned an incomplete redirect. Paste the recipe text instead.');
       url = parsePublicUrl(new URL(result.redirect, url).href);
     }
@@ -74,4 +76,13 @@ export async function fetchPublicHtml(input, { resolveHost = lookup, requestFor 
     if (error instanceof ImportError) throw error;
     throw new ImportError('The website could not be reached. Paste the recipe text instead.');
   }
+}
+
+export async function fetchPublicHtml(input, options = {}) {
+  const result = await fetchPublicResource(input, options);
+  return { html: result.data.toString('utf8'), url: result.url };
+}
+
+export function fetchPublicImage(input, options = {}) {
+  return fetchPublicResource(input, { ...options, kind: 'image' });
 }

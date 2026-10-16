@@ -1,18 +1,23 @@
 {
-  "name": "recipe-web-app",
+  "name": "shared-cookbook",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A local recipe collection and shopping list planner.",
+  "description": "A social cookbook for couples, friends and well-loved recipes.",
   "engines": {
-    "node": ">=22.5.0"
+    "node": "24.x"
   },
   "scripts": {
-    "start": "node --experimental-sqlite server.js",
-    "dev": "node --experimental-sqlite --watch server.js",
-    "test": "node --experimental-sqlite --test"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test",
+    "build": "node scripts/check-hosting.js"
   },
   "dependencies": {
-    "cheerio": "^1.1.2"
+    "cheerio": "^1.1.2",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10"
   }
 }

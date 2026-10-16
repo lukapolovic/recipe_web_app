@@ -1,9 +1,8 @@
 import { load } from 'cheerio';
 import { CATEGORIES } from './public/recipe-config.js';
 
-export class ImportError extends Error {
-  constructor(message, status = 422) { super(message); this.status = status; }
-}
+import { ImportError } from './import-error.js';
+export { ImportError };
 export function cleanText(value) {
   const $ = load(String(value ?? ''), null, false);
   $('script, style, iframe, noscript').remove();
@@ -84,6 +83,15 @@ function categoryFrom(value, title) {
   if (/shake|smoothie/.test(text)) return 'Shake';
   return CATEGORIES.find(c => text.includes(c.toLowerCase())) || 'Dinner';
 }
+export function imageUrlFrom(value, sourceUrl) {
+  if (Array.isArray(value)) return value.map(v => imageUrlFrom(v, sourceUrl)).find(Boolean) || '';
+  if (value && typeof value === 'object') return imageUrlFrom(value.url ?? value.contentUrl ?? value.thumbnailUrl, sourceUrl);
+  if (typeof value !== 'string' || value.length > 2000 || !sourceUrl) return '';
+  try {
+    const url = new URL(value, sourceUrl);
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.href : '';
+  } catch { return ''; }
+}
 function draftFrom(data, sourceUrl = '') {
   const warnings = [];
   const rawIngredients = Array.isArray(data.recipeIngredient) ? data.recipeIngredient : typeof data.recipeIngredient === 'string' ? data.recipeIngredient.split('\n') : [];
@@ -107,6 +115,7 @@ function draftFrom(data, sourceUrl = '') {
       servings, minutes: Math.min(minutes, 1440), ingredients: parsed.map(row => row.ingredient), instructions: instructions.map(s => s.slice(0, 2000)),
       sourceUrl, sourceCaloriesPerServing: sourceCaloriesPerServing != null && sourceCaloriesPerServing <= 100000 ? sourceCaloriesPerServing : null,
     },
+    imageUrl: imageUrlFrom(data.image, sourceUrl),
     warnings: [...warnings, ...parsed.flatMap(row => row.warnings)],
   };
 }
@@ -117,7 +126,12 @@ export function extractHtml(html, sourceUrl = '') {
     try { findRecipes(JSON.parse($(element).text().replace(/^\s*<!--|-->\s*$/g, '')), candidates); } catch { /* Some pages contain unrelated invalid JSON-LD blocks. */ }
   });
   const candidate = candidates.find(r => r.recipeIngredient && r.recipeInstructions);
-  if (candidate) return draftFrom(candidate, sourceUrl);
+  const fallbackImage = $('meta[property="og:image"]').attr('content') || $('meta[name="twitter:image"]').attr('content') || '';
+  if (candidate) {
+    const result = draftFrom(candidate, sourceUrl);
+    result.imageUrl ||= imageUrlFrom(fallbackImage, sourceUrl);
+    return result;
+  }
   const scope = $('[itemtype$="/Recipe"]').first();
   if (scope.length) {
     const raw = {
@@ -126,6 +140,7 @@ export function extractHtml(html, sourceUrl = '') {
       recipeInstructions: scope.find('[itemprop="recipeInstructions"] li, [itemprop="recipeInstructions"] [itemprop="text"]').map((_, e) => $(e).text()).get(),
       recipeYield: scope.find('[itemprop="recipeYield"]').first().text(),
       totalTime: scope.find('[itemprop="totalTime"]').attr('datetime'),
+      image: scope.find('[itemprop="image"]').attr('src') || fallbackImage,
     };
     if (!raw.recipeInstructions.length) raw.recipeInstructions = scope.find('[itemprop="recipeInstructions"]').text();
     try { return draftFrom(raw, sourceUrl); } catch (error) { if (!(error instanceof ImportError)) throw error; }
@@ -138,6 +153,7 @@ export function extractHtml(html, sourceUrl = '') {
   body.find('p, li, h1, h2, h3, h4, div').append('\n');
   const result = extractText(body.text(), { sourceUrl });
   if (!result.recipe.title || result.recipe.title === 'Imported recipe') result.recipe.title = cleanText($('h1').first().text() || $('title').text()).slice(0, 120) || 'Imported recipe';
+  result.imageUrl = imageUrlFrom(fallbackImage || card.find('img').first().attr('src'), sourceUrl);
   result.warnings.unshift('Imported from visible page text. Check the ingredient amounts and steps.');
   return result;
 }

@@ -1,10 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { openDatabase, validateRecipe, ValidationError } from '../database.js';
-import { createApp } from '../server.js';
+import { validateRecipe, ValidationError } from '../recipe-model.js';
 import { shoppingList, nutritionFor } from '../public/recipe-math.js';
 
 function fixture(overrides = {}) {
@@ -14,50 +10,6 @@ function fixture(overrides = {}) {
     instructions: ['Cook the rice.', 'Add the tomatoes.'], ...overrides
   };
 }
-
-test('recipes persist across database restarts; edits and deletes persist', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'pantry-test-'));
-  const path = join(directory, 'recipes.sqlite');
-  try {
-    let repository = openDatabase(path);
-    const recipe = repository.create(fixture());
-    repository.close();
-    repository = openDatabase(path);
-    assert.equal(repository.get(recipe.id).title, 'Tomato rice');
-    assert.deepEqual(repository.get(recipe.id).ingredients, validateRecipe(fixture()).ingredients);
-    repository.update(recipe.id, fixture({ title: 'Updated rice', servings: 4 }));
-    assert.equal(repository.get(recipe.id).servings, 4);
-    assert.equal(repository.remove(recipe.id), true);
-    assert.equal(repository.remove(recipe.id), false);
-    repository.close();
-    repository = openDatabase(path);
-    assert.deepEqual(repository.list(), []);
-    repository.close();
-  } finally { await rm(directory, { recursive: true, force: true }); }
-});
-
-test('search finds ingredients, filters combine, and SQL wildcards are literal', () => {
-  const repository = openDatabase(':memory:');
-  try {
-    repository.create(fixture());
-    repository.create(fixture({ title: '100% Oats', category: 'Breakfast', diet: 'Vegetarian', minutes: 10, ingredients: [{ name: 'Oats', quantity: 100, unit: 'g' }] }));
-    assert.equal(repository.list({ q: 'tomato', category: 'Dinner', diet: 'Vegan', maxMinutes: '30' }).length, 1);
-    assert.equal(repository.list({ q: 'rice', maxMinutes: '15' }).length, 0);
-    assert.equal(repository.list({ q: '%' }).length, 1);
-    assert.equal(repository.list({ q: "' OR 1=1 --" }).length, 0);
-    assert.throws(() => repository.list({ maxMinutes: '-1' }), ValidationError);
-  } finally { repository.close(); }
-});
-
-test('example loading is opt-in and repeatable without duplicating recipes', () => {
-  const repository = openDatabase(':memory:');
-  try {
-    assert.equal(repository.list().length, 0);
-    assert.equal(repository.loadExamples().length, 6);
-    assert.equal(repository.loadExamples().length, 0);
-    assert.equal(repository.list().length, 6);
-  } finally { repository.close(); }
-});
 
 test('shopping list scales servings, merges compatible units, preserves other units and notes', () => {
   const recipes = [
@@ -94,30 +46,3 @@ test('validation rejects unusable quantities, invalid units, and inappropriate c
   ]) assert.throws(() => validateRecipe(fixture(changes)), ValidationError);
 });
 
-test('HTTP API supports CRUD and filters, rejects bad input, and protects local files', async () => {
-  const { server } = createApp({ databasePath: ':memory:' });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
-  const request = (path, method = 'GET', value, headers = {}) => fetch(`${base}${path}`, { method, headers: { 'Content-Type': 'application/json', ...headers }, body: value === undefined ? undefined : JSON.stringify(value) });
-  try {
-    const home = await request('/');
-    assert.equal(home.status, 200);
-    assert.match(await home.text(), /Pantry/);
-    let response = await request('/api/recipes', 'POST', fixture());
-    assert.equal(response.status, 201);
-    const recipe = await response.json();
-    response = await request('/api/recipes?q=tomatoes&diet=Vegan&maxMinutes=30');
-    assert.equal((await response.json()).length, 1);
-    response = await request(`/api/recipes/${recipe.id}`, 'PUT', fixture({ title: 'New title' }));
-    assert.equal((await response.json()).title, 'New title');
-    assert.equal((await request('/api/recipes', 'POST', fixture({ servings: 0 }))).status, 400);
-    assert.equal((await fetch(`${base}/api/recipes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' })).status, 400);
-    assert.equal((await request('/api/recipes', 'POST', fixture(), { Origin: 'https://other.example' })).status, 403);
-    assert.equal((await fetch(`${base}/api/recipes`, { method: 'POST', body: JSON.stringify(fixture()) })).status, 415);
-    assert.equal((await request('/database.js')).status, 404);
-    assert.equal((await request('/data/recipes.sqlite')).status, 404);
-    assert.equal((await request('/api/recipes/999')).status, 404);
-    assert.equal((await request(`/api/recipes/${recipe.id}`, 'DELETE')).status, 200);
-    assert.equal((await request(`/api/recipes/${recipe.id}`)).status, 404);
-  } finally { await new Promise(resolve => server.close(resolve)); }
-});

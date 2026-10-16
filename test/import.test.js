@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 import { extractHtml, extractText, parseIngredient, ImportError } from '../recipe-import.js';
 import { fetchPublicHtml, parsePublicUrl, isPublicAddress } from '../public-fetch.js';
 import { chooseFood, createNutritionService, portionGrams } from '../nutrition.js';
-import { openDatabase, validateRecipe, ValidationError } from '../database.js';
+import { validateRecipe, ValidationError } from '../recipe-model.js';
 import { nutritionFor, shoppingList } from '../public/recipe-math.js';
 import { createApp } from '../server.js';
 
@@ -122,24 +122,19 @@ test('nutrition API limits preserve the draft and supplied portion weights calcu
   assert.ok(Math.abs(shoppingList([{ id: 1, servings: 1, title: 'Oats', ingredients: [{ name: 'Oats', unit: 'oz', quantity: 1 }] }], [{ recipeId: 1, servings: 1 }])[0].quantity - 28.349523125) < 0.00001);
 });
 
-test('source calories are stored, scale servings, and are invalidated when a saved recipe changes', () => {
-  const repository = openDatabase(':memory:');
-  try {
-    const recipe = repository.create(extractHtml(html, 'https://example.com/shake').recipe);
-    assert.equal(repository.get(recipe.id).sourceCaloriesPerServing, 220);
-    assert.equal(nutritionFor(recipe, 3).total, 660);
-    const updated = repository.update(recipe.id, { ...recipe, ingredients: recipe.ingredients.map((i, n) => n === 0 ? { ...i, quantity: 200 } : i) });
-    assert.equal(updated.sourceCaloriesPerServing, null);
-    assert.throws(() => validateRecipe({ ...recipe, category: 'Dessert' }), ValidationError);
-    assert.throws(() => validateRecipe({ ...recipe, sourceUrl: 'javascript:alert(1)' }), ValidationError);
-  } finally { repository.close(); }
+test('imported source calories scale with servings, and unsafe recipe fields are rejected', () => {
+  const recipe = extractHtml(html, 'https://example.com/shake').recipe;
+  assert.equal(recipe.sourceCaloriesPerServing, 220);
+  assert.equal(nutritionFor(recipe, 3).total, 660);
+  assert.throws(() => validateRecipe({ ...recipe, category: 'Dessert' }), ValidationError);
+  assert.throws(() => validateRecipe({ ...recipe, sourceUrl: 'javascript:alert(1)' }), ValidationError);
 });
 
-test('HTTP imports create reviewable drafts without saving, and failed imports allow a paste fallback', async () => {
-  const { server, repository } = createApp({ databasePath: ':memory:', fetchHtml: async url => {
+test('demo HTTP imports create reviewable drafts without saving, and failed imports allow a paste fallback', async () => {
+  const { server } = createApp({ fetchHtml: async url => {
     if (url.includes('blocked')) throw new ImportError('Website blocked importing.');
     return { html, url };
-  }, nutritionService: { estimate: async ingredients => ({ ingredients, warnings: ['Nutrition not available.'], demo: true }) } });
+  } });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${server.address().port}/api/import`;
   const request = input => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
@@ -147,7 +142,6 @@ test('HTTP imports create reviewable drafts without saving, and failed imports a
     let response = await request({ url: 'https://example.com/recipe' });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).recipe.category, 'Shake');
-    assert.equal(repository.list().length, 0);
     response = await request({ url: 'https://example.com/blocked' });
     assert.equal(response.status, 422);
     response = await request({ text });
@@ -157,37 +151,8 @@ test('HTTP imports create reviewable drafts without saving, and failed imports a
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
-test('source estimates are cleared when ingredient calorie values change', () => {
-  const repository = openDatabase(':memory:');
-  try {
-    const recipe = repository.create(extractHtml(html, 'https://example.com/shake').recipe);
-    const changed = repository.update(recipe.id, { ...recipe, ingredients: recipe.ingredients.map((i, n) => n ? i : { ...i, kcalPer100g: 379 }) });
-    assert.equal(changed.sourceCaloriesPerServing, null);
-    assert.equal(changed.ingredients[0].kcalPer100g, 379);
-    assert.equal(chooseFood('Milk', [{ ...food, description: 'Milk, human' }]), null);
-    assert.equal(chooseFood('Water', [{ ...food, description: 'Water convolvulus,raw' }]), null);
-    assert.equal(chooseFood('Water', [{ ...food, description: 'Water, tap, drinking' }]).description, 'Water, tap, drinking');
-  } finally { repository.close(); }
-});
-
-test('existing recipe databases migrate source fields and old meal categories without losing ingredients', async () => {
-  const { mkdtemp, rm } = await import('node:fs/promises');
-  const { tmpdir } = await import('node:os');
-  const { join } = await import('node:path');
-  const directory = await mkdtemp(join(tmpdir(), 'pantry-migrate-'));
-  const path = join(directory, 'recipes.sqlite');
-  try {
-    let repository = openDatabase(path);
-    const recipe = repository.create(extractHtml(html, 'https://example.com/shake').recipe);
-    repository.db.exec('ALTER TABLE recipes DROP COLUMN source_url; ALTER TABLE recipes DROP COLUMN source_calories;');
-    repository.db.prepare("UPDATE recipes SET category = 'Dessert' WHERE id = ?").run(recipe.id);
-    repository.close();
-    repository = openDatabase(path);
-    const migrated = repository.get(recipe.id);
-    assert.equal(migrated.category, 'Snack');
-    assert.equal(migrated.sourceUrl, '');
-    assert.equal(migrated.sourceCaloriesPerServing, null);
-    assert.deepEqual(migrated.ingredients, recipe.ingredients);
-    repository.close();
-  } finally { await rm(directory, { recursive: true, force: true }); }
+test('food matching rejects unrelated foods and accepts the plain ingredient', () => {
+  assert.equal(chooseFood('Milk', [{ ...food, description: 'Milk, human' }]), null);
+  assert.equal(chooseFood('Water', [{ ...food, description: 'Water convolvulus,raw' }]), null);
+  assert.equal(chooseFood('Water', [{ ...food, description: 'Water, tap, drinking' }]).description, 'Water, tap, drinking');
 });

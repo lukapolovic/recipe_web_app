@@ -1,8 +1,10 @@
 import { GRAMS_PER_UNIT } from './recipe-config.js';
 export { UNITS } from './recipe-config.js';
 
+// Constructing Intl formatters is costly; every ingredient row reuses this one.
+const quantityFormat = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
 export function formatQuantity(value) {
-  return new Intl.NumberFormat('en', { maximumFractionDigits: 2 }).format(value);
+  return quantityFormat.format(value);
 }
 
 export function nutritionFor(recipe, servings = recipe.servings) {
@@ -44,3 +46,6 @@ export function displayAmount(quantity, unit) {
   if (unit === 'ml' && quantity >= 1000) return `${formatQuantity(quantity / 1000)} l`;
   return `${formatQuantity(quantity)} ${unit === 'piece' ? (quantity === 1 ? 'piece' : 'pieces') : unit}`;
 }
+
+// Identifies a shopping-list row (and its amount) for ticked-off checkboxes.
+export const checkKey = row => `${row.key}|${row.quantity}`;
