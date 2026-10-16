@@ -1,6 +1,33 @@
-/** Palette hues derive from four chunks of the 16-character design seed. */
+/** Rose, sage and blue derive from four chunks of the 16-character design seed; pop is hand-picked. */
 export const DESIGN_SEED = "12e64b850f9cb074";
 export const PALETTES = [
+  {
+    "id": "pop",
+    "name": "Midnight kitchen",
+    "description": "Tomato, lemon, basil and sky drawn as cartoon stickers on deep navy. A night market for your recipes.",
+    "colors": [
+      {
+        "name": "Midnight",
+        "hex": "#101a33"
+      },
+      {
+        "name": "Lemon",
+        "hex": "#ffd43b"
+      },
+      {
+        "name": "Tomato",
+        "hex": "#ff5a3c"
+      },
+      {
+        "name": "Sky",
+        "hex": "#8ec5ff"
+      },
+      {
+        "name": "Basil",
+        "hex": "#2e9e5b"
+      }
+    ]
+  },
   {
     "id": "rose",
     "name": "Rose & Walnut",

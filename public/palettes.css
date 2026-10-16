@@ -211,3 +211,61 @@ input:focus,textarea:focus,select:focus { border-color:var(--wine); box-shadow:0
 @media print { .recipe-paper,.shopping-paper { background:#fff; } }
 .rating .muted,.recipe-card-meta,.person-card p,.review-author small,.auth-card>p,.profile-hero>p,.recipe-source,.recipe-facts,.reviews-header p,.stat,.instructions-list li::before,.ingredient-calories,.dialog-header p,.auth-footnote,.auth-divider { color:var(--muted); }
 .ingredients-list li,.instructions-list li { color:var(--theme-ink-soft); }
+
+/* Hand-picked, not seeded: a night market, bright cartoon produce on deep navy. Component treatment lives in pop.css. */
+:root[data-palette="pop"] {
+  color-scheme: dark;
+  --canvas: #101a33;
+  --paper: #18244a;
+  --paper-dark: #22305c;
+  --ink: #f2f4f7;
+  --muted: #a9b3cf;
+  --line: #2f3d6b;
+  --wine: #ffd43b;
+  --wine-dark: #ffe27a;
+  --rose: #2a3868;
+  --rose-soft: #22305c;
+  --sage: #7bd89b;
+  --sage-light: #1c3b3d;
+  --ochre: #ffd43b;
+  --oak: #ffd43b;
+  --walnut: #101a33;
+  --wood-shadow: transparent;
+  --theme-sidebar: #101a33;
+  --theme-topbar: #101a33;
+  --theme-hero: #101a33;
+  --theme-input: #18244a;
+  --theme-hero-veil: #101a33;
+  --theme-nav: #ffd43b;
+  --theme-ink-soft: #d5dbea;
+  --theme-chip: #22305c;
+  --theme-shadow: transparent;
+  --theme-cover-main: #8ec5ff;
+  --theme-cover-main-ink: #101a33;
+  --theme-cover-secondary: #2e9e5b;
+  --theme-cover-secondary-ink: #101a33;
+  --theme-cover-third: #ffd43b;
+  --theme-cover-third-ink: #101a33;
+  --theme-cover-fourth: #ff5a3c;
+  --theme-cover-fourth-ink: #101a33;
+  --theme-success-bg: #1c3b3d;
+  --theme-success-ink: #7bd89b;
+  --theme-error-bg: #3d1f2e;
+  --theme-error-ink: #ff9a7e;
+  --night: #101a33;
+  --tomato: #ff5a3c;
+  --lemon: #ffd43b;
+  --pith: #fff4c4;
+  --basil: #2e9e5b;
+  --sky: #8ec5ff;
+  --serif: 'Unbounded', 'Arial Rounded MT Bold', sans-serif;
+  --sans: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+[data-palette-card="pop"] {
+  --swatch-0: #101a33;
+  --swatch-1: #ffd43b;
+  --swatch-2: #ff5a3c;
+  --swatch-3: #8ec5ff;
+  --swatch-4: #2e9e5b;
+}

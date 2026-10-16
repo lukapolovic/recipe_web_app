@@ -285,12 +285,12 @@ small { font-size: 12px; }
 .hero-actions .text-button { font-size: 10px; }
 .cookbook-grid { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 19px; }
 .book-cover { border: 0; border-radius: 0; }
-.book-cover-eyebrow { font-size: 6px; letter-spacing: .17em; line-height: 1.7; max-width: 135px; margin-bottom: 4px; }
+.book-cover-eyebrow { text-transform: uppercase; font-size: 6px; letter-spacing: .17em; line-height: 1.7; max-width: 135px; margin-bottom: 4px; }
 .book-cover-title { margin: 10px 0 8px; }
 .book-cover-flourish { display: flex; align-items: center; justify-content: center; width: 60px; height: 42px; margin: 1px 0 9px; }
 .book-cover-flourish::before, .book-cover-flourish::after { content: ''; width: 18px; height: 1px; background: currentColor; opacity: .3; }
 .book-cover-flourish svg { width: 24px; height: 28px; margin: 0 8px; opacity: .65; stroke-width: 1.3; transform: rotate(-20deg); }
-.book-cover-owner { font-size: 6px; letter-spacing: .13em; line-height: 1.7; }
+.book-cover-owner { text-transform: uppercase; font-size: 6px; letter-spacing: .13em; line-height: 1.7; }
 .book-cover.terracotta { background: #c99479; }
 .book-cover:has(> img) { color: #fff7e9; }
 .book-cover:has(> img)::before { background: linear-gradient(#36250d24,#211a0e78); opacity: 1; z-index: -1; }

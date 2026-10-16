@@ -12,7 +12,7 @@ if (!config.functions?.['api/index.js']) throw new Error('The Node.js API functi
 if (pkg.engines?.node !== '24.x') throw new Error('Use Node.js 24.x for the hosted API.');
 
 for (const file of [
-  '../public/designs.html', '../public/designs.js', '../public/designs.css', '../public/design-preview.html', '../public/palettes.js', '../public/palettes.css', '../public/layouts.css', '../public/index.html', '../public/brand.js', '../public/wood.css', '../public/wood-assets/kitchen-table.svg', '../public/wood-assets/oak-grain.svg', '../public/app.js', '../public/cookbook-store.js', '../public/social.css', '../public/social-ui.css', '../public/social-demo.js',
+  '../public/designs.html', '../public/designs.js', '../public/designs.css', '../public/design-preview.html', '../public/palettes.js', '../public/palettes.css', '../public/layouts.css', '../public/pop.css', '../public/fonts/unbounded.woff2', '../public/index.html', '../public/brand.js', '../public/wood.css', '../public/wood-assets/kitchen-table.svg', '../public/wood-assets/oak-grain.svg', '../public/app.js', '../public/cookbook-store.js', '../public/social.css', '../public/social-ui.css', '../public/social-demo.js',
   '../api/index.js', '../server.js', '../social-api.js', '../recipe-photos.js', '../import-error.js', '../hosting/social-schema.sql', '../hosting/migrations/001-performance.sql',
 ]) read(file);
 

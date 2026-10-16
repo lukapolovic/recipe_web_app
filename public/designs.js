@@ -2,7 +2,7 @@ import { DESIGN_SEED, PALETTES } from './palettes.js';
 const grid=document.querySelector('#design-grid');
 const escape=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 let view='discover';
-const layouts={"rose": ["The editorial cookbook", "A left menu, a wide welcome and generous shelves. Recipe pages open into ingredients and instructions."], "sage": ["The farmhouse pinboard", "A top menu, wooden bowls up front and recipes beside the books. Recipe photos sit alongside the method."], "blue": ["The bistro journal", "A slim menu, a tall cover story and a compact cookbook index. Recipes read like a page from a kitchen diary."]};
+const layouts={"pop": ["The night market", "A top menu, a navy welcome with cartoon produce stickers and bright cookbook covers. Recipe pages read big and left-aligned."], "rose": ["The editorial cookbook", "A left menu, a wide welcome and generous shelves. Recipe pages open into ingredients and instructions."], "sage": ["The farmhouse pinboard", "A top menu, wooden bowls up front and recipes beside the books. Recipe photos sit alongside the method."], "blue": ["The bistro journal", "A slim menu, a tall cover story and a compact cookbook index. Recipes read like a page from a kitchen diary."]};
 document.querySelector('#design-seed').textContent=DESIGN_SEED;
 function render(){
   grid.dataset.view=view;

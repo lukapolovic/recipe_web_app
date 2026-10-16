@@ -1,0 +1,606 @@
+/* Midnight kitchen: a night market. Bright cartoon produce stickers on deep navy, a wide rounded display face for headlines,
+   calm grotesk for everything you read. Every rule is scoped to the "pop" kitchen style, so the seeded styles keep their look. */
+@font-face { font-family: 'Unbounded'; src: url('/fonts/unbounded.woff2') format('woff2'); font-weight: 200 900; font-display: swap; }
+@font-face { font-family: 'Homemade Apple'; src: url('/fonts/homemade-apple.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Kalam'; src: url('/fonts/kalam.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Kalam'; src: url('/fonts/kalam-bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Hanken Grotesk'; src: url('/fonts/hanken-grotesk.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+
+:root[data-palette="pop"] {
+  --radius-big: 28px;
+  --radius: 18px;
+  --field: #0c1430;
+  --bar: color-mix(in srgb, var(--night) 88%, transparent);
+  --bounce: cubic-bezier(.2, .9, .3, 1.35);
+
+  body { font: clamp(15px, 14px + .25vw, 17px)/1.6 var(--sans); background: var(--canvas); color: var(--ink); }
+  /* The night sky: line doodles of food, faint enough to read over. */
+  body::before {
+    content: ''; position: fixed; z-index: -1; inset: -480px 0 0 -480px; pointer-events: none;
+    background: url('/pop-assets/doodles.svg') 0 0 / 480px 480px repeat; opacity: .07;
+  }
+  ::selection { color: var(--night); background: var(--lemon); }
+  .loading-state { color: var(--muted); }
+
+  /* Unbounded is for headlines and cover titles; working text stays in the grotesk. */
+  h1, h2 { font-family: var(--serif); font-weight: 700; letter-spacing: -.025em; line-height: 1.08; color: var(--ink); }
+  h3, h4 { font-family: var(--sans); font-weight: 650; letter-spacing: -.01em; line-height: 1.3; }
+  h1 { font-size: clamp(34px, 3.8vw, 54px); }
+  h2 { font-size: clamp(24px, 2.2vw, 32px); }
+  h3 { font-size: 18px; }
+  small { font-size: 13px; }
+
+  /* Decorative slogans above headings go; the two that carry facts (whose cookbook, which meal) stay. */
+  .eyebrow, .handwritten, .book-cover-eyebrow, .book-cover-flourish, .paper-flourish, .little-heart, .brand small, .sidebar-note { display: none; }
+  .paper-header > .eyebrow, .cookbook-hero .eyebrow {
+    display: block; text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 14px;
+  }
+  .cookbook-hero .eyebrow::first-letter { text-transform: uppercase; }
+  .recipe-description, .recipe-summary, .step-row > span, .planned-meal > .text-button { font-family: var(--sans); font-style: normal; }
+
+  button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; }
+  .photo-upload:focus-within { outline-color: var(--sky); }
+
+  /* Buttons: lemon for the main action, white outline for the rest. */
+  .button { border-radius: 999px; border: 2px solid var(--ink); padding: 11px 20px; font: 650 14px/1.3 var(--sans); transition: transform .15s var(--bounce), background .15s; }
+  .button svg { width: 16px; height: 16px; }
+  .button.small { padding: 8px 15px; font-size: 13px; }
+  .button.large { padding: 14px 26px; font-size: 16px; }
+  .button:active { transform: scale(.96); }
+  .button.primary { background: var(--lemon); border-color: var(--lemon); color: var(--night); }
+  .button.primary:hover { background: #ffe27a; border-color: #ffe27a; }
+  .button:not(.primary):not(.danger):not(.light) { color: var(--ink); border-color: #f2f4f799; background: transparent; }
+  .button:not(.primary):not(.danger):not(.light):hover { background: #ffffff14; border-color: var(--ink); }
+  .button.subtle { border-color: transparent; }
+  .button.danger { background: var(--tomato); border-color: var(--tomato); color: var(--night); }
+  .text-button { font: 600 14px/1.5 var(--sans); color: var(--ink); text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: var(--lemon); text-underline-offset: 4px; }
+  .text-button:hover { color: var(--lemon); }
+  .icon-button { color: var(--ink); }
+  .icon-button:hover { background: #ffffff18; color: var(--ink); }
+  .icon-button.danger:hover { background: #ff5a3c33; color: var(--tomato); }
+
+  input, textarea, select, .recipe-summary input, .planned-meal input { border: 2px solid var(--line); border-radius: 12px; background: var(--field); color: var(--ink); font-size: 15px; }
+  input::placeholder, textarea::placeholder { color: #8791b0; }
+  input:focus, textarea:focus, select:focus { border-color: var(--sky); box-shadow: 0 0 0 4px #8ec5ff33; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--lemon); }
+  .form-field, .form-field > label, .field-label { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .form-field > small, .form-field small, .form-hint, .ingredient-row > .ingredient-calories { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .tag, .badge, .recipe-tags .tag { font: 600 12px/1.4 var(--sans); padding: 4px 11px; border-radius: 999px; background: var(--paper-dark); color: var(--ink); }
+  .badge.demo, .badge.private, .badge.public { background: var(--paper-dark); color: var(--muted); }
+
+  /* Shell: the old side menu becomes one sticky bar across the top. */
+  .app-shell { display: grid; grid-template-columns: auto minmax(0, 1fr); align-content: start; }
+  .app-content { display: contents; }
+  .app-sidebar {
+    grid-column: 1; grid-row: 1; position: sticky; inset: 0 auto auto 0; width: auto; height: 76px; z-index: 30;
+    flex-direction: row; align-items: center; gap: 30px; padding: 0 0 0 40px;
+    background: var(--bar); background-image: none; backdrop-filter: blur(14px); border: 0; box-shadow: inset 0 -1px var(--line);
+  }
+  .topbar {
+    grid-column: 2; grid-row: 1; position: sticky; top: 0; z-index: 30; height: 76px; padding: 0 40px 0 24px; gap: 14px; justify-content: flex-end;
+    background: var(--bar); backdrop-filter: blur(14px); border: 0; box-shadow: inset 0 -1px var(--line);
+  }
+  .demo-banner, .page-body, .app-footer { grid-column: 1 / -1; }
+  .brand { padding: 0; min-height: 0; gap: 8px; color: var(--ink); }
+  .brand > span:last-child { font: 700 19px/1 var(--serif); letter-spacing: -.03em; }
+  .brand-symbol { width: 30px; height: 30px; border-radius: 50%; background: var(--basil); box-shadow: 0 0 0 2px var(--ink); }
+  .brand-symbol svg { width: 17px; height: 17px; color: var(--night); stroke-width: 2.2; }
+  .sidebar-nav { display: flex; gap: 4px; margin: 0; }
+  .nav-link { width: auto; color: var(--theme-ink-soft); font: 600 14px/1.2 var(--sans); border-radius: 999px; padding: 10px 15px; gap: 8px; white-space: nowrap; }
+  .nav-link svg { width: 17px; height: 17px; stroke-width: 2; }
+  .nav-link:hover { color: var(--ink); background: #ffffff12; }
+  .nav-link.active, .nav-link[aria-current=page] { color: var(--night); background: var(--lemon); }
+  .app-sidebar > .sidebar-bottom { display: none; }
+  .global-search { flex: 1; max-width: 340px; }
+  .global-search svg { left: 16px; color: var(--muted); }
+  .global-search input { background: var(--paper); border: 2px solid transparent; border-radius: 999px; padding: 10px 40px 10px 44px; font-size: 14px; }
+  .global-search input:focus { border-color: var(--sky); box-shadow: 0 0 0 4px #8ec5ff33; }
+  .global-search kbd { right: 14px; border-color: var(--line); color: var(--muted); }
+  .topbar > .button { margin-left: 0; }
+  .mobile-user { display: block; border: 0; background: none; padding: 0; }
+  .mobile-user .avatar { width: 38px; height: 38px; font-size: 13px; box-shadow: 0 0 0 2px var(--ink); }
+  .avatar, .avatar.sage, .avatar.gold, .avatar.blue { background: var(--lemon); color: var(--night); font-weight: 700; }
+  .avatar:nth-child(2) { background: var(--sky); color: var(--night); }
+  .avatar:nth-child(3) { background: #7bd89b; color: var(--night); }
+  .avatar-stack .avatar { border-color: var(--canvas); }
+
+  .demo-banner { background: var(--paper); color: var(--muted); border: 0; font-size: 13px; justify-content: center; gap: 18px; }
+  .demo-banner button { color: var(--lemon); font-size: 13px; font-weight: 650; text-decoration-thickness: 2px; }
+  .app-footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; margin: 0 40px; padding-left: 0; padding-right: 0; }
+  .app-footer > span + span { color: var(--muted); }
+  .page-body { max-width: 1440px; padding: 24px 40px 72px; }
+
+  /* Welcome: the one loud moment. A big headline beside a pile of produce stickers. */
+  .welcome-hero {
+    background: transparent; background-image: none; border: 0; border-radius: 0; box-shadow: none; overflow: visible;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 520px; margin-bottom: 40px;
+  }
+  .welcome-hero > .hero-illustration { display: none; }
+  .welcome-hero::after {
+    content: ''; position: absolute; z-index: 1; pointer-events: none; top: 0; right: -10px; bottom: 0; width: 52%;
+    background: url('/pop-assets/hero-cutouts.svg') center / contain no-repeat;
+  }
+  .hero-copy { padding: 40px 0; position: relative; z-index: 2; }
+  .hero-copy h1 { font-size: clamp(40px, 4.5vw, 68px); line-height: 1.04; letter-spacing: -.035em; max-width: 10em; color: var(--ink); }
+  .hero-copy h1 em { font-style: normal; font-weight: inherit; color: inherit; }
+  .hero-copy p { font-size: 18px; line-height: 1.6; max-width: 26em; color: var(--muted); margin-top: 26px; }
+  .hero-actions { gap: 24px; margin-top: 34px; }
+  .hero-actions .button { padding: 14px 26px; font-size: 16px; }
+  .hero-actions .text-button { font-size: 15px; }
+
+  .section-head { margin: 0 0 24px; align-items: end; }
+  .section-head h2 { font-size: clamp(26px, 2.4vw, 34px); }
+  .section-head h2 svg { color: var(--lemon); }
+  .section-head p { font-size: 14px; color: var(--muted); }
+  .page-section { margin-top: 72px; }
+  .page-heading > p, .page-heading > div > p { font-size: 16px; color: var(--muted); }
+  .filter-row select { font-size: 14px; padding: 8px 32px 8px 14px; border-radius: 999px; background-color: var(--field); }
+  .breadcrumb { font: 600 14px var(--sans); color: var(--muted); margin-bottom: 20px; }
+  .breadcrumb:hover { color: var(--ink); }
+
+  /* Cookbooks: bright covers with a square spine and a rounded fore-edge, each with its own sticker. */
+  .cookbook-grid { gap: 32px 24px; }
+  .cookbook-card { background: transparent; border: 0; border-radius: 0; overflow: visible; }
+  .cookbook-card:hover { transform: none; box-shadow: none; }
+  .book-cover {
+    height: 300px; padding: 26px 24px 22px 36px; border-radius: 6px 24px 24px 6px; color: var(--night);
+    align-items: flex-start; justify-content: flex-start; gap: 10px; text-align: left; border-bottom: 0;
+    background-repeat: no-repeat; background-size: 80%; background-position: right -24% bottom -22%;
+    transition: transform .35s var(--bounce), background-position .45s var(--bounce);
+  }
+  .book-cover:hover { transform: rotate(-1.5deg) translateY(-4px); background-position: right -16% bottom -14%; }
+  .book-cover::before, .book-cover::after { display: none; }
+  .book-spine { width: 14px; background: #101a3329; border-right: 2px solid #101a3340; box-shadow: none; }
+  .book-cover-title { font: 700 clamp(22px, 1.9vw, 28px)/1.08 var(--serif); letter-spacing: -.03em; margin: 0; max-width: 8em; }
+  .book-cover-owner { text-transform: none; letter-spacing: 0; font: 600 13px/1.4 var(--sans); max-width: 70%; }
+  .book-cover.rose, .book-cover.wine { background-color: var(--sky); background-image: url('/pop-assets/cover-tomato.svg'); }
+  .book-cover.olive, .book-cover.blue { background-color: var(--basil); background-image: url('/pop-assets/cover-lemon.svg'); }
+  .book-cover.ochre, .book-cover.cream { background-color: var(--lemon); background-image: url('/pop-assets/cover-leaf.svg'); }
+  .book-cover.terracotta { background-color: var(--tomato); background-image: url('/pop-assets/cover-pear.svg'); }
+  .book-cover:has(> img) { color: #fff; }
+  .book-cover:has(> img)::before { display: block; opacity: 1; background: linear-gradient(#101a3300 30%, #101a33c7); }
+  .book-info { background: transparent; padding: 16px 4px 0; }
+  .book-heading h3, .book-heading h3 button { font-size: 18px; color: var(--ink); }
+  .book-heading > .icon-button { width: 34px; height: 34px; color: var(--ink); }
+  .book-heading > .icon-button svg { width: 18px; height: 18px; }
+  .book-heading > .icon-button.is-following { background: var(--tomato); color: var(--night); }
+  .book-heading > .icon-button.is-following svg { fill: var(--night); }
+  .book-heading .badge { font-size: 11px; padding: 2px 8px; }
+  .book-info > p { font-size: 14px; line-height: 1.55; min-height: 0; color: var(--muted); }
+  .book-info > .book-meta { border-top: 0; padding-top: 0; margin-top: 12px; }
+  .book-meta .avatar-stack .avatar { width: 26px; height: 26px; font-size: 10px; }
+  .book-meta .avatar-stack > span:not(.avatar) { font-size: 13px; color: var(--muted); }
+  .book-meta .rating, .rating { font-size: 13px; color: var(--ink); }
+  .rating svg { width: 14px; height: 14px; fill: var(--lemon); stroke: var(--lemon); }
+  .rating strong { color: var(--ink); }
+  .rating .muted { color: var(--muted); }
+  .follow-button { border: 2px solid #f2f4f799; color: var(--ink); border-radius: 999px; font-size: 12px; padding: 6px 12px; }
+  .follow-button:hover { background: #ffffff14; }
+  .follow-button.following, .follow-button[aria-pressed=true] { background: var(--lemon); border-color: var(--lemon); color: var(--night); }
+
+  /* Recipes: borderless, the photo does the talking. */
+  .recipe-grid { gap: 36px 22px; }
+  .recipe-card { background: transparent; border: 0; border-radius: 0; overflow: visible; }
+  .recipe-card:hover { transform: none; box-shadow: none; }
+  .recipe-photo { border-radius: var(--radius); overflow: hidden; aspect-ratio: 1.2; background: var(--paper); }
+  .recipe-photo .recipe-placeholder, .recipe-photo.rose .recipe-placeholder, .recipe-photo.ochre .recipe-placeholder, .recipe-photo.terracotta .recipe-placeholder { background: var(--paper-dark); background-image: none; color: var(--lemon); }
+  .recipe-placeholder span { font: 600 14px var(--sans); }
+  .photo-category, .recipe-photo .tag { background: var(--lemon); color: var(--night); font: 650 12px/1.3 var(--sans); padding: 5px 11px; border-radius: 999px; box-shadow: none; top: 12px; left: 12px; }
+  .recipe-photo .icon-button { background: var(--night); color: var(--ink); }
+  .recipe-body { padding: 14px 4px 0; }
+  .recipe-book-name { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+  .recipe-body h3, .recipe-body h3 button { font-size: 18px; line-height: 1.3; color: var(--ink); }
+  .recipe-card-meta { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .recipe-card-meta svg { width: 14px; height: 14px; }
+  .recipe-card .rating { font-size: 13px; }
+  .recipe-card .recipe-tags .tag { font-size: 11px; padding: 2px 9px; }
+
+  /* A single cookbook: its cover colour becomes the whole header, with dark ink on top. */
+  .cookbook-hero { position: relative; overflow: hidden; border: 0; border-radius: var(--radius-big); padding: 48px; grid-template-columns: minmax(0, 1fr); background-repeat: no-repeat; background-size: 360px; background-position: right -50px bottom -80px; }
+  .cookbook-hero, .cookbook-hero.rose, .cookbook-hero.wine { background-color: var(--sky); background-image: url('/pop-assets/cover-tomato.svg'); }
+  .cookbook-hero.olive, .cookbook-hero.blue { background-color: var(--basil); background-image: url('/pop-assets/cover-lemon.svg'); }
+  .cookbook-hero.ochre { background-color: var(--lemon); background-image: url('/pop-assets/cover-leaf.svg'); }
+  .cookbook-hero.terracotta { background-color: var(--tomato); background-image: url('/pop-assets/cover-pear.svg'); }
+  .cookbook-hero > .mini-book { display: none; }
+  .cookbook-hero > div { max-width: 640px; }
+  .cookbook-hero :is(h1, p, .cookbook-hero-meta, .eyebrow, .rating, .rating strong, .rating .muted) { color: var(--night); }
+  .cookbook-hero .rating svg { fill: var(--night); stroke: var(--night); }
+  .cookbook-hero h1 { font-size: clamp(36px, 4vw, 58px); }
+  .cookbook-hero p { font-size: 17px; line-height: 1.6; }
+  .cookbook-hero-meta { font-size: 14px; font-weight: 600; }
+  .cookbook-hero .hero-actions { grid-column: 1; margin-top: 28px; }
+  .cookbook-hero .button.primary { background: var(--night); border-color: var(--night); color: var(--ink); }
+  .cookbook-hero .button:not(.primary):not(.danger):not(.light) { color: var(--night); border-color: var(--night); }
+  .cookbook-hero .button:not(.primary):not(.danger):not(.light):hover { background: #101a331f; }
+  .cookbook-hero .icon-button { color: var(--night); }
+  .cookbook-hero .icon-button:hover { background: #101a331f; }
+
+  /* The recipe sheet: grandma's index card on the night table. Yellowed paper, blue rules, a red margin, fountain-pen ink.
+     Cursive (Homemade Apple) only where you read once: the title and headings. Ingredients and steps are in Kalam,
+     a handwriting that stays legible from across the counter. Text sits on a 34px rule. */
+  .recipe-paper {
+    --rule: 34px; --ink-pen: #1f3c88; --ink-red: #c8372d; --pencil: #5d5a55; --card: #fbf5e6; --margin: 76px;
+    color: var(--ink-pen); border: 0; border-radius: 4px; padding: 52px 56px 44px var(--margin); overflow: hidden; isolation: isolate;
+    background:
+      url('/pop-assets/paper-grain.svg') 0 0 / 240px repeat,
+      linear-gradient(90deg, transparent calc(var(--margin) - 24px), #e2878799 calc(var(--margin) - 24px) calc(var(--margin) - 22px), transparent calc(var(--margin) - 22px)),
+      var(--card);
+    box-shadow: inset 0 0 70px #b0894a2e, 0 2px 0 #e9dfc8, 0 30px 70px #00000073;
+  }
+  .recipe-paper::before { display: none; }
+  .recipe-paper::after { content: ''; position: absolute; z-index: -1; top: -70px; right: -60px; width: 270px; height: 270px; background: url('/pop-assets/coffee-ring.svg') center / contain no-repeat; pointer-events: none; mix-blend-mode: multiply; }
+  .recipe-paper :is(h1, h2) { font-family: 'Homemade Apple', cursive; font-weight: 400; letter-spacing: 0; color: var(--ink-pen); }
+
+  /* The top of the card: title and notes on the left, the snapshot clipped on the right, a red line underneath. */
+  .recipe-paper .paper-header {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 360px); column-gap: 48px; align-items: start;
+    text-align: left; padding: 0 0 30px; margin-bottom: var(--rule); border-bottom: 2px solid #e28787b3; position: relative;
+  }
+  .recipe-paper .paper-header > * { grid-column: 1; }
+  .recipe-paper .paper-header > .eyebrow { font: 400 16px/1.4 'Kalam', cursive; color: var(--pencil); margin: 0 0 8px; }
+  .recipe-paper .recipe-title { font-size: clamp(34px, 3.6vw, 52px); line-height: 1.5; max-width: 12em; margin: 0; padding-top: 6px; }
+  .recipe-paper .recipe-description { font: 400 19px/1.55 'Kalam', cursive; color: var(--ink-pen); max-width: 32em; margin: 10px 0 18px; }
+  .recipe-paper .recipe-summary { font: 400 17px/1.4 'Kalam', cursive; color: var(--ink-pen); gap: 26px; margin: 0 0 14px; justify-content: flex-start; }
+  .recipe-paper .recipe-summary svg { width: 18px; height: 18px; color: var(--pencil); }
+  .recipe-paper .recipe-summary input { width: 56px; padding: 0 4px; font: 700 18px 'Kalam', cursive; text-align: center; color: var(--ink-pen); background: transparent; border: 0; border-bottom: 2px solid var(--ink-pen); border-radius: 0; }
+  .recipe-paper .recipe-summary input:focus { box-shadow: none; border-bottom-color: var(--ink-red); }
+  .recipe-paper .rating, .recipe-paper .rating strong { color: var(--ink-pen); font: 700 17px 'Kalam', cursive; }
+  .recipe-paper .rating .muted { color: var(--pencil); }
+  .recipe-paper .rating svg { fill: var(--ink-red); stroke: var(--ink-red); }
+  .recipe-paper .recipe-tags { justify-content: flex-start; gap: 6px 10px; }
+  .recipe-paper .recipe-tags .tag { font: 400 15px/1.3 'Kalam', cursive; color: var(--pencil); background: transparent; border: 1.5px solid #5d5a5566; border-radius: 40% 60% 55% 45% / 60% 45% 55% 40%; padding: 2px 12px; }
+  /* A snapshot held on with a strip of tape. */
+  .recipe-paper .paper-recipe-photo {
+    grid-column: 2; grid-row: 1 / span 6; width: 100%; height: auto; aspect-ratio: 1.1; object-fit: cover; margin: 6px 0 0;
+    border: 10px solid #fff; border-bottom-width: 34px; border-radius: 2px; outline: 0; rotate: 2deg; box-shadow: 0 10px 24px #4b35172e;
+  }
+  .recipe-paper .paper-header::after {
+    content: ''; position: absolute; top: -10px; right: calc(min(360px, 34%) / 2 - 56px); width: 112px; height: 30px; rotate: -5deg;
+    background: #fdf8e2b8; box-shadow: 0 1px 3px #0000001a; clip-path: polygon(3% 0, 97% 6%, 100% 50%, 96% 100%, 2% 94%, 0 45%);
+  }
+
+  /* Ruled lines run behind both columns, and every line of writing lands on one. */
+  .recipe-paper .recipe-columns {
+    gap: 0 56px; padding-top: 0; text-align: left;
+    background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--rule) - 1px), #8fb0dc73 calc(var(--rule) - 1px) var(--rule)) 0 4px;
+  }
+  .recipe-paper .recipe-columns > section { background: none; color: inherit; border-radius: 0; padding: 0; }
+  .recipe-paper .recipe-columns .section-head { display: block; margin: 0; }
+  .recipe-paper .recipe-columns h2 {
+    font-size: 23px; line-height: calc(var(--rule) * 2); height: calc(var(--rule) * 2); margin: 0; white-space: nowrap;
+    background: url('/pop-assets/pen-squiggle.svg') left bottom 6px / 190px 12px no-repeat;
+  }
+  .recipe-paper .ingredients-list li, .recipe-paper .instructions-list li { font: 400 19px/var(--rule) 'Kalam', cursive; color: var(--ink-pen); border: 0; padding-top: 0; padding-bottom: 0; margin: 0; }
+  .recipe-paper .ingredients-list li { display: flex; align-items: flex-start; gap: 12px; }
+  .recipe-paper .ingredients-list label { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 0; cursor: pointer; }
+  .recipe-paper .ingredients-list li small { display: block; font: 400 16px/var(--rule) 'Kalam', cursive; color: var(--pencil); margin: 0; }
+  .recipe-paper .ingredients-list li > strong { font: 700 19px/var(--rule) 'Kalam', cursive; color: var(--ink-pen); white-space: nowrap; padding: 0; }
+  /* A hand-drawn tick box; ticking crosses the ingredient out with a pen stroke. */
+  .recipe-paper .ingredients-list input[type=checkbox] {
+    appearance: none; flex-shrink: 0; width: 19px; height: 19px; margin: 8px 0 0; padding: 0; cursor: pointer;
+    border: 2px solid var(--ink-pen); border-radius: 3px 5px 3px 6px; background: transparent center / 22px no-repeat; rotate: -3deg;
+  }
+  .recipe-paper .ingredients-list input[type=checkbox]:checked { background-image: url('/pop-assets/pen-check.svg'); }
+  .recipe-paper .ingredients-list input[type=checkbox]:focus-visible { outline: 3px solid var(--ink-red); outline-offset: 2px; box-shadow: none; }
+  .recipe-paper .ingredients-list label > span { background: url('/pop-assets/pen-strike.svg') 0 calc(var(--rule) / 2 - 7px) / 0% 14px no-repeat; transition: background-size .35s ease-out, color .35s; text-decoration: none; }
+  .recipe-paper .ingredients-list input:checked + span { background-size: 100% 14px; color: #1f3c88a6; text-decoration: none; }
+  .recipe-paper .ingredients-list li:has(input:checked) > strong { color: #1f3c88a6; }
+  .recipe-paper .ingredient-calories { font: 400 15px/var(--rule) 'Kalam', cursive; color: var(--pencil); }
+  /* Steps really are a sequence: red-pen numbers, circled by hand, with a blank line between steps. */
+  .recipe-paper .instructions-list li { padding-left: 52px; margin-bottom: var(--rule); max-width: 34em; }
+  .recipe-paper .instructions-list li::before {
+    content: counter(steps); top: -2px; left: 0; width: 38px; height: 38px; display: grid; place-items: center;
+    font: 700 19px/1 'Kalam', cursive; color: var(--ink-red); background: url('/pop-assets/pen-circle.svg') center / contain no-repeat;
+  }
+  .recipe-paper .paper-footnote { font: 400 16px/1.5 'Kalam', cursive; color: var(--pencil); border-top: 0; margin-top: 4px; padding-top: 0; }
+  .recipe-paper .paper-footnote a { color: var(--ink-pen); }
+  .recipe-paper .paper-actions { justify-content: flex-start; }
+  .recipe-paper .button.primary { background: var(--night); border-color: var(--night); color: var(--card); }
+  .recipe-paper .button.primary:hover { background: #22305c; border-color: #22305c; }
+  .recipe-paper .button:not(.primary):not(.danger):not(.light) { color: var(--night); border-color: var(--night); }
+  .recipe-paper .button:not(.primary):not(.danger):not(.light):hover { background: #101a3312; }
+  .recipe-paper :focus-visible { outline-color: var(--ink-red); }
+  .recipe-paper ::selection { background: #ffd43b99; color: var(--night); }
+
+  @media (max-width: 900px) {
+    .recipe-paper .paper-header { grid-template-columns: minmax(0, 1fr); }
+    .recipe-paper .paper-recipe-photo { grid-column: 1; grid-row: auto; max-width: 420px; margin: 14px 0 6px; }
+    .recipe-paper .paper-header::after { right: auto; left: calc(min(420px, 100%) / 2 - 56px); top: auto; display: none; }
+    .recipe-paper .recipe-columns { grid-template-columns: minmax(0, 1fr); row-gap: var(--rule); }
+  }
+  @media (max-width: 720px) {
+    .recipe-paper { --margin: 40px; padding: 30px 18px 30px var(--margin); }
+    .recipe-paper::after { width: 170px; height: 170px; top: -50px; right: -50px; }
+    .recipe-paper .recipe-title { font-size: 30px; }
+    .recipe-paper .recipe-description { font-size: 18px; }
+    .recipe-paper .recipe-summary { gap: 16px; font-size: 16px; }
+    .recipe-paper .ingredients-list li, .recipe-paper .instructions-list li, .recipe-paper .ingredients-list li > strong { font-size: 18px; }
+    .recipe-paper .instructions-list li { padding-left: 44px; }
+    .recipe-paper .instructions-list li::before { width: 34px; height: 34px; font-size: 17px; }
+    .recipe-paper .recipe-columns h2 { font-size: 20px; }
+    .recipe-paper .paper-actions .button { font-size: 14px; padding: 10px 16px; }
+  }
+  @media print {
+    .recipe-paper { background: #fff; padding: 0; }
+    .recipe-paper .paper-header::after { display: none; }
+  }
+  /* The title writes itself once, when the recipe is opened; the rest inks in after it. Steps and ingredients ink in as they scroll up,
+     finishing before they are fully on screen, so nothing you are reading is half written. */
+  @media (prefers-reduced-motion: no-preference) {
+    .page-enter .recipe-paper .recipe-title { animation: pop-write 1.5s cubic-bezier(.45, .05, .4, 1) .15s both; }
+    .page-enter .recipe-paper .paper-header > :is(.recipe-description, .recipe-summary, .recipe-tags) { animation: pop-ink .6s ease-out 1.1s both; }
+    .page-enter .recipe-paper .paper-recipe-photo { animation: pop-snap .7s var(--bounce) .5s both; }
+    @supports (animation-timeline: view()) {
+      .recipe-paper :is(.ingredients-list li, .instructions-list li, .recipe-columns h2) { animation: pop-write linear both; animation-timeline: view(); animation-range: entry 0% entry 100%; }
+    }
+  }
+
+  .reviews-section { margin-top: 56px; }
+  .reviews-section h2 { font-size: 32px; }
+  .review-form { background: var(--paper); border: 0; border-radius: var(--radius); padding: 28px; }
+  .review-form h3 { font-size: 20px; }
+  .review-form > .form-field { color: var(--ink); }
+  .review-form textarea { background: var(--field); font-size: 15px; }
+  .rating-input legend { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .rating-input label span { border: 2px solid var(--line); border-radius: 999px; padding: 7px 14px; font-size: 14px; background: transparent; color: var(--ink); }
+  .rating-input label input:checked + span { background: var(--lemon); border-color: var(--lemon); color: var(--night); }
+  .review-card { background: transparent; border-top: 1px solid var(--line); }
+  .review-card > p { font-size: 16px; line-height: 1.65; color: var(--theme-ink-soft); }
+  .review-author strong, .review-author .text-button { font-size: 15px; color: var(--ink); }
+  .review-author small { font-size: 13px; color: var(--muted); }
+  .review-stars { color: var(--lemon); font-size: 16px; }
+  .review-stars > span { color: var(--line); }
+  .review-card .reply, .review-card .reply p, .review-card .reply-toggle { font-size: 14px; color: var(--muted); }
+  .reply { border-left: 3px solid var(--lemon); }
+
+  /* People, profile, shopping: navy panels; the profile gets its own cover colour. */
+  .person-card { background: var(--paper); border: 0; border-radius: var(--radius-big); padding: 30px 24px; }
+  .person-card h3, .person-card h3 .text-button { font-size: 20px; color: var(--ink); text-decoration: none; }
+  .person-card > .muted, .person-card .username { font-size: 13px; color: var(--muted); }
+  .person-card p { font-size: 14px; line-height: 1.6; color: var(--muted); }
+  .person-card > .avatar { width: 64px; height: 64px; font-size: 20px; }
+  .profile-hero { background: var(--lemon) url('/pop-assets/cover-leaf.svg') right -40px bottom -70px / 300px no-repeat; border: 0; border-radius: var(--radius-big); padding: 48px; overflow: hidden; }
+  .profile-hero :is(h1, p, p.muted, .username) { color: var(--night); }
+  .profile-hero > h1 { font-size: clamp(36px, 3.6vw, 52px); }
+  .profile-hero > p, .profile-hero > p.muted { font-size: 16px; }
+  .profile-hero > .avatar { background: var(--night); color: var(--lemon); }
+  .profile-hero .button:not(.primary):not(.danger):not(.light) { color: var(--night); border-color: var(--night); }
+  .profile-hero .button:not(.primary):not(.danger):not(.light):hover { background: #101a331f; }
+  .shopping-paper { background: var(--paper); border: 0; border-radius: var(--radius-big); box-shadow: none; padding: 34px; }
+  .shopping-paper > .muted { font-size: 14px; }
+  .shopping-row { font-size: 16px; color: var(--ink); border-bottom: 1px solid var(--line); }
+  .shopping-row small, .shopping-row.checked > span, .shopping-row.checked > strong { color: var(--muted); }
+  .shopping-row small { font-size: 13px; }
+  .shopping-row strong { font-size: 15px; color: var(--ink); }
+  .meal-plan { background: var(--sage-light); border: 0; border-radius: var(--radius-big); padding: 34px; }
+  .meal-plan > p { font-size: 15px; color: var(--theme-ink-soft); }
+  .planned-meal { border-top: 1px solid #2f5a55; }
+  .planned-meal > .text-button { font-size: 17px; font-weight: 650; text-decoration: none; }
+  .planned-meal label { font-size: 14px; color: var(--theme-ink-soft); }
+  .notice, .demo-notice, .import-box, .editor-photo { background: var(--paper-dark); color: var(--ink); border: 0; border-radius: var(--radius); font-size: 14px; }
+  .notice.error { background: var(--theme-error-bg); color: var(--theme-error-ink); }
+  .import-box details, #import-status, #photo-status { color: var(--muted); font-size: 13px; }
+  .ingredient-row, .form-section { border-color: var(--line); }
+  .step-row > span { color: var(--tomato); font-family: var(--serif); font-weight: 700; }
+  .empty-state { background: var(--paper) url('/pop-assets/sprig.svg') right -20px bottom -30px / 180px no-repeat; border: 2px dashed var(--line); border-radius: var(--radius-big); color: var(--muted); }
+  .empty-state > svg { color: var(--lemon); }
+  .empty-state h2, .empty-state h3 { color: var(--ink); font-size: 26px; }
+  .empty-state p { font-size: 15px; color: var(--muted); }
+
+  .app-dialog { background: var(--paper); color: var(--ink); border: 0; border-radius: var(--radius-big); box-shadow: 0 30px 80px #0008; }
+  .app-dialog::backdrop { background: #070c1bbf; backdrop-filter: blur(4px); }
+  .dialog-header { border-bottom: 1px solid var(--line); padding: 28px 32px 22px; }
+  .dialog-header h2 { font-size: 28px; }
+  .dialog-header p { font-size: 14px; color: var(--muted); }
+  .dialog-content { padding: 26px 32px; }
+  .dialog-actions { background: var(--paper-dark); border-top: 0; padding: 18px 32px; }
+  .palette-option { background: var(--field); color: var(--ink); border: 2px solid var(--line); border-radius: var(--radius); }
+  .palette-option[aria-pressed="true"] { border: 3px solid var(--lemon); padding: 16px; }
+  .palette-option strong { font: 650 17px var(--sans); }
+  .palette-option small { color: var(--muted); }
+  .palette-swatches > [data-swatch] { border-color: #ffffff40; }
+  .toast { background: var(--lemon); color: var(--night); border: 0; border-radius: 999px; font-size: 14px; font-weight: 600; padding: 14px 24px; left: 50%; box-shadow: 0 10px 30px #0006; }
+  .form-error { background: var(--theme-error-bg); color: var(--theme-error-ink); font-size: 14px; }
+
+  /* Sign in: the stickers spill across the left page. */
+  .auth-shell { background: var(--canvas); }
+  .auth-art { background: var(--night) url('/pop-assets/hero-cutouts.svg') center bottom -40px / min(72%, 54vh) no-repeat; border: 0; border-right: 1px solid var(--line); justify-content: flex-start; padding-top: 120px; }
+  .auth-art > .hero-illustration { display: none; }
+  .auth-art .brand { color: var(--ink); }
+  .auth-art h1 { color: var(--ink); font-size: clamp(32px, 3.4vw, 50px); line-height: 1.08; }
+  .auth-art p { color: var(--muted); font-size: 16px; }
+  .auth-card { background: transparent; }
+  .auth-card h2 { font-size: 34px; }
+  .auth-card > p, .auth-footnote, .auth-divider { font-size: 15px; color: var(--muted); }
+  .auth-tabs { border-color: var(--line); }
+  .auth-tabs button { font-size: 15px; font-weight: 600; color: var(--muted); }
+  .auth-tabs button.active { color: var(--ink); border-bottom: 3px solid var(--lemon); }
+
+  @media (min-width: 1450px) {
+    .book-cover { height: 320px; }
+  }
+  @media (max-width: 1280px) {
+    .nav-link svg { display: none; }
+    .nav-link { padding: 9px 13px; }
+    .app-sidebar { gap: 22px; padding-left: 28px; }
+    .topbar { padding-right: 28px; }
+    .page-body { padding-left: 28px; padding-right: 28px; }
+    .app-footer { margin: 0 28px; }
+    .global-search { max-width: 260px; }
+  }
+  @media (max-width: 1150px) {
+    .book-cover { height: 280px; }
+  }
+  @media (max-width: 1040px) {
+    .nav-link svg { display: block; width: 20px; height: 20px; }
+    .nav-link > span { display: none; }
+    .nav-link { padding: 10px; }
+    .app-sidebar .brand > span:last-child { display: none; }
+  }
+  @media (max-width: 900px) {
+    .app-shell { grid-template-columns: auto minmax(0, 1fr); }
+    .app-sidebar { width: auto; height: 76px; padding: 0 0 0 22px; align-items: center; }
+    .app-sidebar .brand > span.brand-symbol { display: flex; }
+    .sidebar-nav { width: auto; margin: 0; }
+    .nav-link { font-size: 0; }
+    .topbar { height: 76px; padding: 0 22px 0 14px; }
+    .page-body { padding-left: 22px; padding-right: 22px; }
+    .app-footer { margin: 0 22px; }
+    .welcome-hero { grid-template-columns: 1fr; min-height: 0; padding-bottom: 340px; }
+    .welcome-hero::after { top: auto; bottom: 0; left: 8%; right: 0; width: auto; height: 340px; }
+  }
+  @media (max-width: 720px) {
+    .app-shell { display: block; padding-bottom: 72px; }
+    .app-content { display: block; }
+    .app-sidebar {
+      position: fixed; inset: auto 0 0; top: auto; width: 100%; height: 68px; display: block; padding: 0 9px max(5px, env(safe-area-inset-bottom));
+      background: var(--bar); box-shadow: inset 0 1px var(--line);
+    }
+    .app-sidebar .brand { display: none; }
+    .sidebar-nav { justify-content: space-around; height: 100%; }
+    .nav-link { font: 600 11px/1.2 var(--sans); padding: 7px 8px 5px; border-radius: 14px; }
+    .nav-link > span { display: block; }
+    .nav-link svg { width: 20px; height: 20px; }
+    .topbar { position: static; height: auto; padding: 14px 18px 12px; box-shadow: none; backdrop-filter: none; background: var(--canvas); }
+    .topbar .global-search { max-width: none; }
+    .topbar .global-search input { font-size: 15px; padding: 11px 16px 11px 44px; }
+    .mobile-brand { font: 700 19px/1 var(--serif); letter-spacing: -.03em; color: var(--ink); }
+    .mobile-user .avatar { width: 32px; height: 32px; font-size: 11px; }
+    .topbar > .button { font-size: 13px; padding: 8px 13px; }
+    .demo-banner { justify-content: space-between; }
+    .demo-banner, .demo-banner button { font-size: 12px; }
+    .app-footer { margin: 0 18px; font-size: 13px; }
+    .page-body { padding: 16px 18px 40px; }
+    .welcome-hero { padding-bottom: 260px; margin-bottom: 24px; }
+    .welcome-hero::after { height: 280px; left: -4%; right: -8%; bottom: -10px; }
+    .hero-copy { padding: 18px 0 32px; }
+    .hero-copy h1 { font-size: clamp(36px, 10.5vw, 54px); }
+    .hero-copy p { font-size: 16px; max-width: none; margin-top: 18px; }
+    .hero-actions { flex-wrap: wrap; gap: 16px; margin-top: 24px; }
+    .hero-actions .button { font-size: 15px; padding: 12px 20px; }
+    .hero-actions .text-button { font-size: 15px; }
+    .section-head .text-button { font-size: 14px; }
+    .page-section { margin-top: 52px; }
+    .cookbook-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 14px; }
+    .book-cover { height: 230px; padding: 20px 14px 16px 26px; border-radius: 5px 18px 18px 5px; }
+    .book-cover-title { font-size: 19px; }
+    .book-cover-owner { font-size: 12px; }
+    .book-info > p { font-size: 14px; }
+    .book-heading h3, .book-heading h3 button { font-size: 16px; }
+    .book-meta .avatar-stack > span:not(.avatar), .book-meta .rating { font-size: 12px; }
+    .recipe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 14px; }
+    .recipe-body h3, .recipe-body h3 button { font-size: 16px; }
+    .recipe-book-name, .recipe-card-meta, .recipe-card .rating { font-size: 12px; }
+    .photo-category { font-size: 11px; }
+    .cookbook-hero { padding: 32px 24px 150px; background-size: 240px; background-position: right -40px bottom -60px; }
+    .cookbook-hero h1 { font-size: 34px; }
+    .cookbook-hero p { font-size: 16px; }
+    .cookbook-hero .eyebrow, .cookbook-hero-meta { font-size: 13px; }
+    .cookbook-hero .hero-actions .button { font-size: 14px; padding: 10px 16px; }
+    .review-card > p { font-size: 15px; }
+    .people-grid { gap: 14px; }
+    .person-card h3 { font-size: 17px; }
+    .person-card p { font-size: 14px; }
+    .profile-hero { padding: 32px 24px 140px; background-size: 220px; }
+    .profile-hero h1 { font-size: 34px; }
+    .toast { bottom: 84px; }
+    .auth-art { padding: 100px 25px 240px; background-size: 330px; background-position: center bottom -20px; border-right: 0; }
+    .auth-art h1 { font-size: 32px; }
+    .auth-art p { font-size: 15px; }
+  }
+  @media (max-width: 440px) {
+    .welcome-hero { padding-bottom: 230px; }
+    .welcome-hero::after { height: 250px; }
+    .cookbook-grid, .recipe-grid { gap: 24px 12px; }
+    .book-cover { height: 205px; padding: 18px 12px 14px 22px; }
+    .book-cover-title { font-size: 17px; }
+    .book-info > p { font-size: 13px; }
+    .recipe-body h3, .recipe-body h3 button { font-size: 15px; }
+    .cookbook-hero h1, .profile-hero h1 { font-size: 30px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .book-cover, .button { transition: none; }
+    .book-cover:hover { transform: none; }
+  }
+  @media print {
+    body { background: #fff; color: #000; }
+  }
+  /* Motion, only for people who have not asked for less of it. Entrance animations hang off .page-enter,
+     which the app sets only on the first draw after navigating, so re-renders from clicks never replay them. */
+  @media (prefers-reduced-motion: no-preference) {
+    body::before { animation: pop-drift 90s linear infinite; }
+    .welcome-hero::after { background-image: url('/pop-assets/hero-cutouts-live.svg'); animation: pop-float 6s ease-in-out infinite alternate; }
+    .page-enter .welcome-hero::after { animation: pop-stick .8s var(--bounce) both, pop-float 6s ease-in-out .8s infinite alternate; }
+    /* Unbounded is a variable font: headlines grow from thin to bold as they arrive. */
+    .page-enter .hero-copy h1 { animation: pop-weight 1.2s cubic-bezier(.2, .8, .2, 1) both; }
+    .page-enter :is(.hero-copy p, .hero-actions) { animation: pop-rise .7s cubic-bezier(.2, .8, .2, 1) .35s both; }
+
+    @supports (animation-timeline: view()) {
+      .welcome-hero::after {
+        animation: pop-float 6s ease-in-out infinite alternate, pop-parallax linear both;
+        animation-timeline: auto, scroll(root); animation-range: normal, 0 720px;
+      }
+      .page-enter .welcome-hero::after {
+        animation: pop-stick .8s var(--bounce) both, pop-float 6s ease-in-out .8s infinite alternate, pop-parallax linear both;
+        animation-timeline: auto, auto, scroll(root); animation-range: normal, normal, 0 720px;
+      }
+      /* Stacked under the copy, drifting up would cover the buttons. */
+      @media (max-width: 900px) {
+        .welcome-hero::after { animation: pop-float 6s ease-in-out infinite alternate; animation-timeline: auto; }
+        .page-enter .welcome-hero::after { animation: pop-stick .8s var(--bounce) both, pop-float 6s ease-in-out .8s infinite alternate; animation-timeline: auto, auto; }
+      }
+      :is(.section-head h2, .page-heading h1, .reviews-section h2) {
+        animation: pop-weight linear both; animation-timeline: view(); animation-range: entry 0% cover 30%;
+      }
+      /* Cookbooks get dealt onto the table, each at its own angle. */
+      .cookbook-card { --deal: -6deg; animation: pop-deal linear both; animation-timeline: view(); animation-range: entry 0% entry 85%; }
+      .cookbook-card:nth-child(even) { --deal: 5deg; }
+      .cookbook-card:nth-child(3n) { --deal: -3deg; }
+      .recipe-card { animation: pop-rise linear both; animation-timeline: view(); animation-range: entry 0% entry 80%; }
+      .recipe-photo > img { animation: pop-settle linear both; animation-timeline: view(); animation-range: entry 0% cover 45%; }
+      .person-card { animation: pop-rise linear both; animation-timeline: view(); animation-range: entry 0% entry 80%; }
+    }
+  }
+}
+
+/* The stickers slap down when the welcome page opens, then bob gently. */
+@keyframes pop-stick {
+  from { opacity: 0; scale: .88; }
+  to { opacity: 1; scale: 1; }
+}
+@keyframes pop-float {
+  from { translate: 0 0; rotate: -.6deg; }
+  to { translate: 0 -14px; rotate: .8deg; }
+}
+@keyframes pop-parallax { to { transform: translateY(-110px); } }
+@keyframes pop-drift { to { transform: translate(480px, 480px); } }
+@keyframes pop-weight {
+  from { font-weight: 250; letter-spacing: .01em; opacity: .2; }
+  45% { opacity: 1; }
+  to { font-weight: 700; }
+}
+@keyframes pop-rise {
+  from { opacity: 0; translate: 0 36px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes pop-deal {
+  from { opacity: 0; translate: 0 80px; rotate: var(--deal); }
+  to { opacity: 1; translate: 0 0; rotate: 0deg; }
+}
+@keyframes pop-settle {
+  from { scale: 1.2; }
+  to { scale: 1; }
+}
+/* A pen moving left to right: a soft-edged mask slides off the words. */
+@keyframes pop-write {
+  from { -webkit-mask: linear-gradient(90deg, #000 46%, transparent 54%) 100% 0 / 220% 100% no-repeat; mask: linear-gradient(90deg, #000 46%, transparent 54%) 100% 0 / 220% 100% no-repeat; }
+  to { -webkit-mask: linear-gradient(90deg, #000 46%, transparent 54%) 0 0 / 220% 100% no-repeat; mask: linear-gradient(90deg, #000 46%, transparent 54%) 0 0 / 220% 100% no-repeat; }
+}
+@keyframes pop-ink {
+  from { opacity: 0; filter: blur(3px); }
+  to { opacity: 1; filter: none; }
+}
+@keyframes pop-snap {
+  from { opacity: 0; scale: 1.12; rotate: -6deg; }
+  to { opacity: 1; scale: 1; rotate: 2deg; }
+}
