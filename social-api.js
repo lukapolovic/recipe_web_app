@@ -4,6 +4,10 @@ import { validateMealPlan } from './meal-plan.js';
 import { UUID } from './ids.js';
 
 const COLORS = ['rose', 'olive', 'ochre', 'terracotta'];
+const REPORT_TARGETS = ['profile', 'cookbook', 'recipe', 'review', 'reply'];
+const REPORT_REASONS = ['spam', 'offensive', 'copyright', 'other'];
+// Storage removes at most 1,000 objects per request.
+const STORAGE_BATCH = 1000;
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 const id = value => { if (typeof value !== 'string' || !UUID.test(value)) fail(400, 'Choose a valid item.'); return value; };
 const string = (value, label, max, optional = false) => {
@@ -69,6 +73,8 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
       if (detail.code === '23503') fail(400, 'An item changed or no longer exists. Refresh and try again.');
       if (detail.code === 'P0002' || response.status === 404) fail(404, /username/i.test(message) ? 'Username not found.' : 'Item not found.');
       if (detail.code === '42501' || response.status === 403) fail(403, 'You do not have permission to make that change.');
+      if (detail.code === 'CB001') fail(400, 'You have too many unsaved photos — save or discard some first.');
+      if (detail.code === 'CB002') fail(400, 'You have reached the limit of 500 photos — remove some recipe photos first.');
       if (detail.code === '22023' || detail.code === '23514') fail(400, detail.code === '22023' ? message.slice(0, 200) : 'Check the recipe, rating or cookbook fields.');
       if (response.status === 429) fail(429, 'Too many attempts. Please wait before trying again.');
       if (/email.*not confirmed/i.test(message)) fail(401, 'Confirm your email before signing in.');
@@ -166,6 +172,28 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
     // All eight reads are independent; issue them together.
     const [profiles, cookbooks, recipes, friendships, follows, reviews, replies, memberships] = await Promise.all([...names.map(name => rest(name, token)), rpc('cookbook_my_memberships', token, {})]);
     return decodeSocial({ profiles, cookbooks, recipes, friendships, follows, reviews, replies, memberships });
+  }
+  // Deleting an account asks for the username and current password again. The
+  // database function does the deletion for auth.uid() and returns the paths of
+  // photos nobody keeps; their files are then removed with the same token,
+  // which stays valid until it expires even though the account is gone.
+  async function deleteAccount(user, token, input) {
+    const own = await one(`profiles?id=eq.${user.id}&select=username&limit=1`, token);
+    const typed = typeof input.username === 'string' ? input.username.trim().replace(/^@/, '').toLowerCase() : '';
+    if (typed !== own.username) fail(400, 'Type your username exactly as it appears on your profile.');
+    const password = string(input.password, 'Password', 128);
+    if (!user.email) fail(400, 'This account has no email address to confirm with.');
+    try { await request('/auth/v1/token?grant_type=password', { method: 'POST', body: { email: user.email, password } }); }
+    catch (error) { if (error.status === 401) fail(400, 'That password did not match. Nothing was deleted.'); throw error; }
+    const paths = await rpc('delete_my_account', token, {});
+    verified.delete(token);
+    const files = Array.isArray(paths) ? paths.filter(path => typeof path === 'string') : [];
+    let photosRemoved = true;
+    for (let start = 0; start < files.length; start += STORAGE_BATCH) {
+      try { await request('/storage/v1/object/social-recipe-photos', { token, method: 'DELETE', body: { prefixes: files.slice(start, start + STORAGE_BATCH) } }); }
+      catch (error) { photosRemoved = false; console.error(`Account deleted, but ${files.length - start} photo files could not be removed: ${error.message}`); break; }
+    }
+    return { deleted: true, photosRemoved };
   }
   async function handle({ method = 'GET', pathname, query = new URLSearchParams(), headers = {}, body } = {}) {
     if (!pathname?.startsWith('/api/social/')) return null;
@@ -270,6 +298,20 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
     }
     else if ((match = path.match(/^\/reviews\/([^/]+)\/replies$/)) && method === 'POST') { result = await one('review_replies', token, { method: 'POST', headers: representation, body: { review_id: id(match[1]), user_id: user.id, comment: string(object(body).comment, 'Reply', 2000) } }); status = 201; }
     else if ((match = path.match(/^\/replies\/([^/]+)$/)) && method === 'DELETE') { await one(`review_replies?id=eq.${id(match[1])}`, token, { method: 'DELETE', headers: representation }); result = { deleted: true }; }
+    else if (path === '/reports' && method === 'POST') {
+      const input = object(body);
+      if (!REPORT_TARGETS.includes(input.targetType)) fail(400, 'Choose what you are reporting.');
+      if (!REPORT_REASONS.includes(input.reason)) fail(400, 'Choose a reason for the report.');
+      const report = { target_type: input.targetType, target_id: id(input.targetId), reason: input.reason, note: string(input.note, 'Note', 500, true) };
+      try { result = await one('reports', token, { method: 'POST', headers: representation, body: report }); }
+      catch (error) {
+        if (error.status === 409) fail(409, 'You have already reported this. Thank you, we will take a look.');
+        if (error.status === 403) fail(403, 'You can report things you can see, but not your own.');
+        throw error;
+      }
+      status = 201;
+    }
+    else if (path === '/account/delete' && method === 'POST') result = await deleteAccount(user, token, object(body));
     else if (path === '/friends' && method === 'GET') result = await rest('friendships?select=*&order=created_at.desc&limit=200', token);
     else if (path === '/friends' && method === 'POST') {
       const name = username(object(body).username);
