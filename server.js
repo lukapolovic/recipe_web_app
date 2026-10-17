@@ -16,7 +16,6 @@ const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=u
 const MAX_BODY = 256 * 1024;
 // Keep in sync with vercel.json, which applies the same headers in production.
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
-const PREVIEW_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'";
 const PHOTO_TYPE = /^image\/(?:jpeg|png|webp)(?:;|$)/i;
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 class HttpError extends Error {
@@ -86,13 +85,12 @@ export function createApp({
     response.setHeader('Content-Security-Policy', CSP);
     try {
       const url = new URL(request.url, 'http://localhost');
-      if (url.pathname === '/design-preview.html') response.setHeader('Content-Security-Policy', PREVIEW_CSP);
       if (url.pathname.startsWith('/api/')) {
         const protocol = request.headers['x-forwarded-proto'] === 'https' || request.socket?.encrypted ? 'https' : 'http';
         const origin = request.headers.origin;
         if (origin && origin !== `${protocol}://${request.headers.host}`) throw new HttpError(403, 'Cross-origin requests are not allowed.');
         if (request.headers['sec-fetch-site'] === 'cross-site') throw new HttpError(403, 'Cross-site requests are not allowed.');
-        if (url.pathname === '/api/social/config' && !social) return json(response, 200, { configured: false, authRequired: false, nutritionEnabled: false, appName: APP_NAME });
+        if (url.pathname === '/api/social/config' && !social) return json(response, 200, { configured: false, authRequired: false, appName: APP_NAME });
         if (!social && url.pathname.startsWith('/api/social/')) throw new HttpError(503, 'Connect your Supabase project before creating real accounts or sharing cookbooks.');
         const route = url.pathname.startsWith(`${base}/`) ? url.pathname.slice(base.length) : '';
         // Signing in comes first, so unauthenticated requests stop before any body is read.

@@ -170,7 +170,7 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
   async function handle({ method = 'GET', pathname, query = new URLSearchParams(), headers = {}, body } = {}) {
     if (!pathname?.startsWith('/api/social/')) return null;
     const path = pathname.slice('/api/social'.length);
-    if (path === '/config' && method === 'GET') return { status: 200, body: { configured: true, authRequired: true, nutritionEnabled: false, appName: APP_NAME } };
+    if (path === '/config' && method === 'GET') return { status: 200, body: { configured: true, authRequired: true, appName: APP_NAME } };
     if (path === '/auth/signup' && method === 'POST') {
       const input = object(body); const name = username(input.username);
       const email = string(input.email, 'Email', 254).toLowerCase();

@@ -4,9 +4,7 @@ import { shoppingList, checkKey } from './recipe-math.js';
 // knowing where it lives. Two adapters implement the same interface.
 //
 //   createHttpStore  - real accounts; talks to /api/social with a bearer token.
-//   createDemoStore  - sample people and cookbooks kept in this browser. It also
-//                      backs the design preview (preview: true: nothing is saved
-//                      and nothing touches the network).
+//   createDemoStore  - sample people and cookbooks kept in this browser.
 //
 // Interface (both adapters):
 //   demo                               true for the sample kitchen
@@ -191,21 +189,19 @@ export function createHttpStore({ host, fetcher = (...args) => fetch(...args), s
   return trackDrafts(store);
 }
 
-export async function createDemoStore({ loadDemoData, preview = false, storage = defaultStorage(), fetcher = (...args) => fetch(...args), notify = () => {} } = {}) {
+export async function createDemoStore({ loadDemoData, storage = defaultStorage(), fetcher = (...args) => fetch(...args), notify = () => {} } = {}) {
   const seed = await loadDemoData();
   let saved;
-  if (!preview) { try { saved = JSON.parse(storage.getItem(DEMO_KEY)); } catch { /* Start from the sample kitchen. */ } }
-  const data = !preview && saved?.cookbooks && saved?.profiles ? saved : clone(seed);
+  try { saved = JSON.parse(storage.getItem(DEMO_KEY)); } catch { /* Start from the sample kitchen. */ }
+  const data = saved?.cookbooks && saved?.profiles ? saved : clone(seed);
   const user = data.currentUser || clone(seed.currentUser);
   const profile = data.profiles.find(p => p.id === user.id) || user;
   for (const key of ['friendships', 'follows', 'reviews', 'replies', 'memberships']) data[key] ||= [];
   data.plans ||= {};
   const uuid = () => crypto.randomUUID();
-  const offline = () => { throw new Error('The design preview uses sample recipes only.'); };
-  const api = async (path, options) => preview ? offline() : parse(await request(fetcher, path, options));
+  const api = async (path, options) => parse(await request(fetcher, path, options));
 
   function save() {
-    if (preview) return;
     try { storage.setItem(DEMO_KEY, JSON.stringify(data)); } catch { notify('Preview storage is full. Changes will last for this session.'); }
   }
   const book = id => data.cookbooks.find(b => b.id === id);
@@ -285,7 +281,7 @@ export async function createDemoStore({ loadDemoData, preview = false, storage =
 
     importRecipe: input => api('/api/import', { method: 'POST', body: JSON.stringify(input) }),
     uploadPhoto: blob => api('/api/photos', { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob }),
-    fetchPhoto: async id => preview ? offline() : download(fetcher, `/api/photos/${id}`),
+    fetchPhoto: id => download(fetcher, `/api/photos/${id}`),
     discardPhoto: id => api(`/api/photos/${id}`, { method: 'DELETE' }),
     // Sample photos are shared by reference; there is nothing to copy.
     copyPhoto: async id => id,

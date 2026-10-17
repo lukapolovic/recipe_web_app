@@ -24,12 +24,7 @@
         {
           "key": "Referrer-Policy",
           "value": "same-origin"
-        }
-      ]
-    },
-    {
-      "source": "/:path((?!design-preview\\.html$).*)",
-      "headers": [
+        },
         {
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
@@ -37,25 +32,7 @@
       ]
     },
     {
-      "source": "/design-preview.html",
-      "headers": [
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'"
-        }
-      ]
-    },
-    {
       "source": "/demo-assets/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=86400, stale-while-revalidate=604800"
-        }
-      ]
-    },
-    {
-      "source": "/wood-assets/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

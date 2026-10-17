@@ -1,152 +1,8 @@
-/* Generated from the design seed; shared components keep their existing layout. */
-:root, :root[data-palette="rose"] {
-  --canvas: #f7f3f3;
-  --paper: #fcfaf7;
-  --paper-dark: #ece6df;
-  --ink: #3b2b2d;
-  --muted: #634f52;
-  --line: #d5c8ca;
-  --wine: #7b3740;
-  --wine-dark: #5b2930;
-  --rose: #e4ced1;
-  --rose-soft: #f0e5e6;
-  --sage: #456039;
-  --sage-light: #e3ebe0;
-  --ochre: #9a6e3c;
-  --oak: #c29e75;
-  --walnut: #715638;
-  --wood-shadow: #4f3c2720;
-  --theme-sidebar: #efe6e7;
-  --theme-topbar: #f9f6f6;
-  --theme-hero: #ebdbdd;
-  --theme-input: #fdfdfb;
-  --theme-hero-veil: #ebdbdde8;
-  --theme-nav: #e2cacd;
-  --theme-ink-soft: #564346;
-  --theme-chip: #ede3e5;
-  --theme-shadow: #4f3c2715;
-  --theme-cover-main: #d6b3b7;
-  --theme-cover-main-ink: #572e33;
-  --theme-cover-secondary: #b9cfaf;
-  --theme-cover-secondary-ink: #3d5a30;
-  --theme-cover-third: #e5cbae;
-  --theme-cover-third-ink: #664c2e;
-  --theme-cover-fourth: #704248;
-  --theme-cover-fourth-ink: #faf8f4;
-  --theme-success-bg: #e9f0e5;
-  --theme-success-ink: #3d5a30;
-  --theme-error-bg: #fae9e6;
-  --theme-error-ink: #8b3333;
-}
-
-[data-palette-card="rose"] {
-  --swatch-0: #7b3740;
-  --swatch-1: #efe6e7;
-  --swatch-2: #fcfaf7;
-  --swatch-3: #3b2b2d;
-  --swatch-4: #715638;
-}
-
-:root[data-palette="sage"] {
-  --canvas: #f4f7f3;
-  --paper: #fcfaf8;
-  --paper-dark: #ece6df;
-  --ink: #303b2b;
-  --muted: #56634f;
-  --line: #ccd5c8;
-  --wine: #405d32;
-  --wine-dark: #2b3f22;
-  --rose: #d5e4ce;
-  --rose-soft: #e9f0e5;
-  --sage: #456039;
-  --sage-light: #e3ebe0;
-  --ochre: #9a6e3c;
-  --oak: #c29e75;
-  --walnut: #937048;
-  --wood-shadow: #4f3c2720;
-  --theme-sidebar: #e4eae1;
-  --theme-topbar: #f7f9f6;
-  --theme-hero: #dbe6d6;
-  --theme-input: #fdfdfb;
-  --theme-hero-veil: #dbe6d6e8;
-  --theme-nav: #d2e2ca;
-  --theme-ink-soft: #495643;
-  --theme-chip: #e6ede3;
-  --theme-shadow: #4f3c2715;
-  --theme-cover-main: #bed6b3;
-  --theme-cover-main-ink: #3b572e;
-  --theme-cover-secondary: #dfc4a4;
-  --theme-cover-secondary-ink: #5a4630;
-  --theme-cover-third: #e5cbae;
-  --theme-cover-third-ink: #664c2e;
-  --theme-cover-fourth: #517042;
-  --theme-cover-fourth-ink: #faf8f4;
-  --theme-success-bg: #e9f0e5;
-  --theme-success-ink: #3d5a30;
-  --theme-error-bg: #fae9e6;
-  --theme-error-ink: #8b3333;
-}
-
-[data-palette-card="sage"] {
-  --swatch-0: #405d32;
-  --swatch-1: #e4eae1;
-  --swatch-2: #fcfaf8;
-  --swatch-3: #303b2b;
-  --swatch-4: #937048;
-}
-
-:root[data-palette="blue"] {
-  --canvas: #f3f4f7;
-  --paper: #fcfaf8;
-  --paper-dark: #ece6df;
-  --ink: #2b2e3b;
-  --muted: #4f5363;
-  --line: #c8cad5;
-  --wine: #3f4b78;
-  --wine-dark: #30385a;
-  --rose: #ced2e4;
-  --rose-soft: #e5e7f0;
-  --sage: #456039;
-  --sage-light: #e3ebe0;
-  --ochre: #9a6e3c;
-  --oak: #c29e75;
-  --walnut: #a17b4f;
-  --wood-shadow: #4f3c2720;
-  --theme-sidebar: #e3e5ed;
-  --theme-topbar: #f6f7f9;
-  --theme-hero: #dcdfea;
-  --theme-input: #fdfdfb;
-  --theme-hero-veil: #dcdfeae8;
-  --theme-nav: #cacfe2;
-  --theme-ink-soft: #434756;
-  --theme-chip: #e3e5ed;
-  --theme-shadow: #4f3c2715;
-  --theme-cover-main: #b9c0da;
-  --theme-cover-main-ink: #2e3657;
-  --theme-cover-secondary: #dfc4a4;
-  --theme-cover-secondary-ink: #5a4630;
-  --theme-cover-third: #e5cbae;
-  --theme-cover-third-ink: #664c2e;
-  --theme-cover-fourth: #424b70;
-  --theme-cover-fourth-ink: #faf8f4;
-  --theme-success-bg: #e9f0e5;
-  --theme-success-ink: #3d5a30;
-  --theme-error-bg: #fae9e6;
-  --theme-error-ink: #8b3333;
-}
-
-[data-palette-card="blue"] {
-  --swatch-0: #3f4b78;
-  --swatch-1: #e3e5ed;
-  --swatch-2: #fcfaf8;
-  --swatch-3: #2b2e3b;
-  --swatch-4: #a17b4f;
-}
-/* Shared material and component treatment across the three studies. */
+/* Colour tokens for the Midnight kitchen style and the shared component treatment that reads them. Style-specific rules live in pop.css. */
 body { background:var(--canvas); color:var(--ink); }
-.app-sidebar { background-color:var(--theme-sidebar); background-image:linear-gradient(var(--theme-sidebar),color-mix(in srgb,var(--theme-sidebar) 90%,transparent)),url('/wood-assets/oak-grain.svg'); border-color:var(--line); }
+.app-sidebar { background-color:var(--theme-sidebar); background-image:linear-gradient(var(--theme-sidebar),color-mix(in srgb,var(--theme-sidebar) 90%,transparent)); border-color:var(--line); }
 .topbar { background:var(--theme-topbar); border-color:var(--line); }
-.welcome-hero { background-color:var(--theme-hero); background-image:linear-gradient(100deg,var(--theme-hero) 0%,var(--theme-hero-veil) 58%,color-mix(in srgb,var(--theme-hero) 80%,transparent) 100%),url('/wood-assets/oak-grain.svg'); border-color:var(--line); box-shadow:0 3px 0 var(--theme-shadow); }
+.welcome-hero { background-color:var(--theme-hero); background-image:linear-gradient(100deg,var(--theme-hero) 0%,var(--theme-hero-veil) 58%,color-mix(in srgb,var(--theme-hero) 80%,transparent) 100%); border-color:var(--line); box-shadow:0 3px 0 var(--theme-shadow); }
 .brand,.mobile-brand,.text-button,.breadcrumb,.hero-copy h1 em,.little-heart,.paper-flourish { color:var(--wine); }
 .brand small,.sidebar-note,.sidebar-bottom .user-chip strong,.sidebar-bottom .user-chip small,.global-search svg,.global-search input::placeholder,.eyebrow,.handwritten,.hero-copy p,.hero-actions .text-button,.app-footer,.book-info>p,.book-meta .avatar-stack>span:not(.avatar),.recipe-book-name,.recipe-description,.recipe-paper .recipe-summary,.ingredients-list li>strong,.ingredients-list li small,.recipe-columns .handwritten,.recipe-paper .paper-footnote,.paper-footnote a,.review-card>p,.review-card .reply,.review-card .reply strong,.review-author .text-button,.form-field,.form-field small,.form-field>small,.import-box details,.editor-photo,.profile-hero>p.muted,.shopping-row,.shopping-row small,.shopping-row strong,.planned-meal label,.planned-meal>.text-button,.auth-art p,.auth-art>.handwritten { color:var(--muted); }
 .nav-link { color:var(--theme-ink-soft); }
@@ -181,8 +37,8 @@ input:focus,textarea:focus,select:focus { border-color:var(--wine); box-shadow:0
 .cookbook-hero.rose,.cookbook-hero.olive,.cookbook-hero.ochre,.cookbook-hero,.profile-hero,.meal-plan,.auth-art { background:var(--theme-hero); border-color:var(--line); }
 .cookbook-hero p,.cookbook-hero-meta { color:var(--muted); }
 .mini-book { color:var(--wine); border-color:var(--line); background:color-mix(in srgb,var(--paper) 40%,transparent); }
-.recipe-paper { background:linear-gradient(var(--paper),var(--paper)) padding-box,url('/wood-assets/oak-grain.svg') border-box; box-shadow:0 10px 35px var(--theme-shadow),0 2px 0 var(--walnut); }
-.shopping-paper { background:linear-gradient(var(--paper),var(--paper)) padding-box,url('/wood-assets/oak-grain.svg') border-box; box-shadow:0 6px 20px var(--theme-shadow),0 2px 0 var(--walnut); }
+.recipe-paper { background:linear-gradient(var(--paper),var(--paper)) padding-box; box-shadow:0 10px 35px var(--theme-shadow),0 2px 0 var(--walnut); }
+.shopping-paper { background:linear-gradient(var(--paper),var(--paper)) padding-box; box-shadow:0 6px 20px var(--theme-shadow),0 2px 0 var(--walnut); }
 .paper-recipe-photo { border-color:var(--theme-input); outline-color:var(--line); }
 .review-stars,.rating svg { color:var(--ochre); }
 .review-stars>span { color:var(--line); }
@@ -193,26 +49,11 @@ input:focus,textarea:focus,select:focus { border-color:var(--wine); box-shadow:0
 .auth-tabs button.active { color:var(--wine); border-color:var(--wine); }
 .form-error { background:var(--theme-error-bg); color:var(--theme-error-ink); }
 .shopping-row.checked>span,.shopping-row.checked>strong { color:var(--muted); }
-.palette-swatches { display:flex; gap:5px; }
-.palette-swatches>[data-swatch] { display:block; width:26px; height:26px; border-radius:50%; border:1px solid #0002; flex-shrink:0; }
-.palette-swatches>[data-swatch="0"] { background:var(--swatch-0); }
-.palette-swatches>[data-swatch="1"] { background:var(--swatch-1); }
-.palette-swatches>[data-swatch="2"] { background:var(--swatch-2); }
-.palette-swatches>[data-swatch="3"] { background:var(--swatch-3); }
-.palette-swatches>[data-swatch="4"] { background:var(--swatch-4); }
-.palette-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
-.palette-option { display:flex; flex-direction:column; align-items:start; text-align:left; padding:17px; gap:13px; background:var(--paper); color:var(--ink); border:1px solid var(--line); border-radius:8px; }
-.palette-option[aria-pressed="true"] { border:2px solid var(--wine); padding:16px; }
-.palette-option strong { font:19px var(--serif); }
-.palette-option small { color:var(--muted); line-height:1.6; }
-.design-preview .demo-banner,.design-preview .app-footer { display:none; }
-.design-preview .page-body { padding-top:25px; }
-@media(max-width:600px) { .palette-options { grid-template-columns:1fr; } }
 @media print { .recipe-paper,.shopping-paper { background:#fff; } }
 .rating .muted,.recipe-card-meta,.person-card p,.review-author small,.auth-card>p,.profile-hero>p,.recipe-source,.recipe-facts,.reviews-header p,.stat,.instructions-list li::before,.ingredient-calories,.dialog-header p,.auth-footnote,.auth-divider { color:var(--muted); }
 .ingredients-list li,.instructions-list li { color:var(--theme-ink-soft); }
 
-/* Hand-picked, not seeded: a night market, bright cartoon produce on deep navy. Component treatment lives in pop.css. */
+/* Midnight kitchen: a night market, bright cartoon produce on deep navy. Component treatment lives in pop.css. */
 :root[data-palette="pop"] {
   color-scheme: dark;
   --canvas: #101a33;
@@ -223,14 +64,11 @@ input:focus,textarea:focus,select:focus { border-color:var(--wine); box-shadow:0
   --line: #2f3d6b;
   --wine: #ffd43b;
   --wine-dark: #ffe27a;
-  --rose: #2a3868;
   --rose-soft: #22305c;
   --sage: #7bd89b;
   --sage-light: #1c3b3d;
   --ochre: #ffd43b;
-  --oak: #ffd43b;
   --walnut: #101a33;
-  --wood-shadow: transparent;
   --theme-sidebar: #101a33;
   --theme-topbar: #101a33;
   --theme-hero: #101a33;
@@ -248,24 +86,13 @@ input:focus,textarea:focus,select:focus { border-color:var(--wine); box-shadow:0
   --theme-cover-third-ink: #101a33;
   --theme-cover-fourth: #ff5a3c;
   --theme-cover-fourth-ink: #101a33;
-  --theme-success-bg: #1c3b3d;
-  --theme-success-ink: #7bd89b;
   --theme-error-bg: #3d1f2e;
   --theme-error-ink: #ff9a7e;
   --night: #101a33;
   --tomato: #ff5a3c;
   --lemon: #ffd43b;
-  --pith: #fff4c4;
   --basil: #2e9e5b;
   --sky: #8ec5ff;
   --serif: 'Unbounded', 'Arial Rounded MT Bold', sans-serif;
   --sans: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-[data-palette-card="pop"] {
-  --swatch-0: #101a33;
-  --swatch-1: #ffd43b;
-  --swatch-2: #ff5a3c;
-  --swatch-3: #8ec5ff;
-  --swatch-4: #2e9e5b;
 }
