@@ -1,5 +1,6 @@
 import { APP_NAME } from './public/brand.js';
 import http from 'node:http';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, resolve, extname, sep } from 'node:path';
@@ -16,7 +17,6 @@ const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=u
 const MAX_BODY = 256 * 1024;
 // Keep in sync with vercel.json, which applies the same headers in production.
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
-const PREVIEW_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'";
 const PHOTO_TYPE = /^image\/(?:jpeg|png|webp)(?:;|$)/i;
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 class HttpError extends Error {
@@ -45,13 +45,18 @@ async function photoBytes(request) {
   if (!PHOTO_TYPE.test(request.headers['content-type'] || '')) throw new HttpError(415, 'Choose a JPG, PNG or WebP photo.');
   return rawBody(request, MAX_PHOTO_BYTES);
 }
+// Compare digests so the check takes the same time whatever the input length.
+const digest = value => createHash('sha256').update(value).digest();
+function cronAuthorized(headers, secret) {
+  return Boolean(secret) && timingSafeEqual(digest(headers.authorization || ''), digest(`Bearer ${secret}`));
+}
 function json(response, status, value) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(value));
 }
 
 export function createApp({
-  fetchHtml = fetchPublicHtml, fetchImage = fetchPublicImage, socialApi: suppliedSocialApi,
+  fetchHtml = fetchPublicHtml, fetchImage = fetchPublicImage, socialApi: suppliedSocialApi, cronSecret = process.env.CRON_SECRET,
 } = {}) {
   const socialKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
   const socialConfigured = suppliedSocialApi || process.env.SUPABASE_URL && socialKey;
@@ -86,17 +91,25 @@ export function createApp({
     response.setHeader('Content-Security-Policy', CSP);
     try {
       const url = new URL(request.url, 'http://localhost');
-      if (url.pathname === '/design-preview.html') response.setHeader('Content-Security-Policy', PREVIEW_CSP);
       if (url.pathname.startsWith('/api/')) {
         const protocol = request.headers['x-forwarded-proto'] === 'https' || request.socket?.encrypted ? 'https' : 'http';
         const origin = request.headers.origin;
         if (origin && origin !== `${protocol}://${request.headers.host}`) throw new HttpError(403, 'Cross-origin requests are not allowed.');
         if (request.headers['sec-fetch-site'] === 'cross-site') throw new HttpError(403, 'Cross-site requests are not allowed.');
-        if (url.pathname === '/api/social/config' && !social) return json(response, 200, { configured: false, authRequired: false, nutritionEnabled: false, appName: APP_NAME });
+        if (url.pathname === '/api/social/config' && !social) return json(response, 200, { configured: false, authRequired: false, appName: APP_NAME });
         if (!social && url.pathname.startsWith('/api/social/')) throw new HttpError(503, 'Connect your Supabase project before creating real accounts or sharing cookbooks.');
         const route = url.pathname.startsWith(`${base}/`) ? url.pathname.slice(base.length) : '';
         // Signing in comes first, so unauthenticated requests stop before any body is read.
         const who = async () => ({ user: social ? await social.authenticate(request.headers) : undefined, headers: request.headers });
+        // Vercel Cron sends Authorization: Bearer $CRON_SECRET. Without a secret
+        // configured the route stays closed rather than open to anyone.
+        if (url.pathname === '/api/cron/keepalive') {
+          if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+          if (!cronSecret) throw new HttpError(503, 'Set CRON_SECRET to enable the keepalive.');
+          if (!cronAuthorized(request.headers, cronSecret)) throw new HttpError(401, 'Not authorized.');
+          if (!social) throw new HttpError(503, 'Connect your Supabase project before enabling the keepalive.');
+          return json(response, 200, { ok: true, ...await social.keepalive() });
+        }
         if (route === '/import' && request.method === 'POST') {
           const caller = await who();
           if (!social && importBusy) throw new HttpError(429, 'An import is already running. Please wait.');

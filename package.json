@@ -10,8 +10,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test",
-    "build": "node scripts/check-hosting.js"
+    "test": "node --import ./scripts/test-env.js --test",
+    "build": "npm test && node scripts/check-hosting.js"
   },
   "dependencies": {
     "cheerio": "^1.1.2",

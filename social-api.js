@@ -198,7 +198,7 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
   async function handle({ method = 'GET', pathname, query = new URLSearchParams(), headers = {}, body } = {}) {
     if (!pathname?.startsWith('/api/social/')) return null;
     const path = pathname.slice('/api/social'.length);
-    if (path === '/config' && method === 'GET') return { status: 200, body: { configured: true, authRequired: true, nutritionEnabled: false, appName: APP_NAME } };
+    if (path === '/config' && method === 'GET') return { status: 200, body: { configured: true, authRequired: true, appName: APP_NAME } };
     if (path === '/auth/signup' && method === 'POST') {
       const input = object(body); const name = username(input.username);
       const email = string(input.email, 'Email', 254).toLowerCase();
@@ -325,5 +325,8 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
     else fail(404, 'Endpoint not found.');
     return { status, body: decodeSocial(result) };
   }
-  return { handle, authenticate, putPhoto, getPhoto, removePhoto };
+  // One anonymous round trip through PostgREST into Postgres, so the daily cron
+  // counts as database activity and the Free plan does not pause the project.
+  async function keepalive() { return { at: await rpc('keepalive', undefined, {}) }; }
+  return { handle, authenticate, putPhoto, getPhoto, removePhoto, keepalive };
 }

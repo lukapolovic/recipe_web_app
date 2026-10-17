@@ -95,19 +95,15 @@ test('demo store enforces the cookbook rules the hosted database enforces', asyn
   assert.equal(feed.cookbooks.some(b => b.id === book.id), false);
 });
 
-test('demo store keeps changes in browser storage, and the design preview keeps nothing', async () => {
+test('demo store keeps changes in browser storage', async () => {
   const storage = memoryStorage();
   const first = await createDemoStore({ loadDemoData: async () => demoData, storage });
   await first.mutate('/cookbooks', 'POST', { name: 'Kept', visibility: 'private', coverColor: 'rose' });
   const again = await createDemoStore({ loadDemoData: async () => demoData, storage });
   assert.ok((await again.loadFeed()).feed.cookbooks.some(b => b.name === 'Kept'));
-  const preview = await createDemoStore({ loadDemoData: async () => demoData, storage: memoryStorage(), preview: true });
-  await preview.mutate('/cookbooks', 'POST', { name: 'Gone', visibility: 'private', coverColor: 'rose' });
-  assert.equal(preview.demo, true);
-  await assert.rejects(preview.importRecipe({ text: 'x' }), /sample recipes only/);
-  await assert.rejects(preview.fetchPhoto('x'), /sample recipes only/);
-  assert.equal(await preview.copyPhoto('shared'), 'shared');
-  assert.equal(await preview.search({ q: 'x' }), null, 'sample kitchen filters the feed on the page');
+  assert.equal(again.demo, true);
+  assert.equal(await again.copyPhoto('shared'), 'shared');
+  assert.equal(await again.search({ q: 'x' }), null, 'sample kitchen filters the feed on the page');
 });
 
 test('http store signs in, sends the bearer token and refreshes an expired session once', async () => {

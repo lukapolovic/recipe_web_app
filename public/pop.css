@@ -1,5 +1,5 @@
 /* Midnight kitchen: a night market. Bright cartoon produce stickers on deep navy, a wide rounded display face for headlines,
-   calm grotesk for everything you read. Every rule is scoped to the "pop" kitchen style, so the seeded styles keep their look. */
+   calm grotesk for everything you read. Every rule is scoped to :root[data-palette="pop"], which index.html sets. */
 @font-face { font-family: 'Unbounded'; src: url('/fonts/unbounded.woff2') format('woff2'); font-weight: 200 900; font-display: swap; }
 @font-face { font-family: 'Homemade Apple'; src: url('/fonts/homemade-apple.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Kalam'; src: url('/fonts/kalam.woff2') format('woff2'); font-weight: 400; font-display: swap; }
@@ -115,7 +115,6 @@
     background: transparent; background-image: none; border: 0; border-radius: 0; box-shadow: none; overflow: visible;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 520px; margin-bottom: 40px;
   }
-  .welcome-hero > .hero-illustration { display: none; }
   .welcome-hero::after {
     content: ''; position: absolute; z-index: 1; pointer-events: none; top: 0; right: -10px; bottom: 0; width: 52%;
     background: url('/pop-assets/hero-cutouts.svg') center / contain no-repeat;
@@ -394,18 +393,12 @@
   .dialog-header p { font-size: 14px; color: var(--muted); }
   .dialog-content { padding: 26px 32px; }
   .dialog-actions { background: var(--paper-dark); border-top: 0; padding: 18px 32px; }
-  .palette-option { background: var(--field); color: var(--ink); border: 2px solid var(--line); border-radius: var(--radius); }
-  .palette-option[aria-pressed="true"] { border: 3px solid var(--lemon); padding: 16px; }
-  .palette-option strong { font: 650 17px var(--sans); }
-  .palette-option small { color: var(--muted); }
-  .palette-swatches > [data-swatch] { border-color: #ffffff40; }
   .toast { background: var(--lemon); color: var(--night); border: 0; border-radius: 999px; font-size: 14px; font-weight: 600; padding: 14px 24px; left: 50%; box-shadow: 0 10px 30px #0006; }
   .form-error { background: var(--theme-error-bg); color: var(--theme-error-ink); font-size: 14px; }
 
   /* Sign in: the stickers spill across the left page. */
   .auth-shell { background: var(--canvas); }
   .auth-art { background: var(--night) url('/pop-assets/hero-cutouts.svg') center bottom -40px / min(72%, 54vh) no-repeat; border: 0; border-right: 1px solid var(--line); justify-content: flex-start; padding-top: 120px; }
-  .auth-art > .hero-illustration { display: none; }
   .auth-art .brand { color: var(--ink); }
   .auth-art h1 { color: var(--ink); font-size: clamp(32px, 3.4vw, 50px); line-height: 1.08; }
   .auth-art p { color: var(--muted); font-size: 16px; }

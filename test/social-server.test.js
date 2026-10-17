@@ -224,22 +224,14 @@ test('static files revalidate with ETags and malformed paths are rejected withou
   });
 });
 
-test('design previews are static and isolated while the normal app stays unframeable', async () => {
+test('the app is unframeable and the retired design pages are gone', async () => {
   const { api, events } = socialMock();
   await withServer({ socialApi: api }, async ({ request }) => {
     const normal = await request('/', { token: false });
     assert.equal(normal.status, 200);
     assert.match(normal.headers.get('Content-Security-Policy'), /frame-ancestors 'none'/);
-    const preview = await request('/design-preview.html?palette=sage&designPreview=recipe', { token: false });
-    assert.equal(preview.status, 200);
-    assert.match(preview.headers.get('Content-Security-Policy'), /frame-ancestors 'self'/);
-    assert.match(preview.headers.get('Content-Security-Policy'), /connect-src 'none'/);
-    assert.match(preview.headers.get('Content-Security-Policy'), /form-action 'none'/);
-    assert.match(await preview.text(), /class="design-preview"/);
-    const comparison = await request('/designs.html', { token: false });
-    assert.equal(comparison.status, 200);
-    assert.match(comparison.headers.get('Content-Security-Policy'), /frame-ancestors 'none'/);
-    assert.deepEqual(events, [], 'static design views must not touch the account API');
+    for (const path of ['/design-preview.html', '/designs.html', '/palettes.js', '/wood.css']) assert.equal((await request(path, { token: false })).status, 404, path);
+    assert.deepEqual(events, [], 'static files must not touch the account API');
   });
 });
 
