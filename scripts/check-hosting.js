@@ -9,6 +9,10 @@ if (!config.rewrites?.some(rule => rule.source === '/api/:path*' && rule.destina
   throw new Error('The same-origin API route is missing.');
 }
 if (!config.functions?.['api/index.js']) throw new Error('The Node.js API function is missing.');
+// The daily keepalive stops the Supabase Free plan pausing after 7 idle days.
+if (!config.crons?.some(cron => cron.path === '/api/cron/keepalive' && /^\d+ \d+ \* \* \*$/.test(cron.schedule))) {
+  throw new Error('The daily /api/cron/keepalive cron is missing from vercel.json.');
+}
 if (pkg.engines?.node !== '24.x') throw new Error('Use Node.js 24.x for the hosted API.');
 
 for (const file of [

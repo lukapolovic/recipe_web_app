@@ -283,5 +283,8 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
     else fail(404, 'Endpoint not found.');
     return { status, body: decodeSocial(result) };
   }
-  return { handle, authenticate, putPhoto, getPhoto, removePhoto };
+  // One anonymous round trip through PostgREST into Postgres, so the daily cron
+  // counts as database activity and the Free plan does not pause the project.
+  async function keepalive() { return { at: await rpc('keepalive', undefined, {}) }; }
+  return { handle, authenticate, putPhoto, getPhoto, removePhoto, keepalive };
 }

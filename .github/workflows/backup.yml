@@ -1,0 +1,193 @@
+# Weekly encrypted backup of the Supabase database and recipe photos, followed
+# by cleanup of photo drafts nobody attached. Setup and restore steps live in
+# hosting/RUNBOOK.md. This repository is public, so artifacts can be downloaded
+# by any signed-in GitHub user: only age-encrypted files are ever uploaded, and
+# plaintext only exists in the runner's temporary directory during the job.
+name: Backup
+
+on:
+  schedule:
+    - cron: "41 3 * * 0" # Sundays 03:41 UTC
+  workflow_dispatch:
+    inputs:
+      cleanup:
+        description: Delete unattached photo drafts older than 7 days after the backup
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+defaults:
+  run:
+    # Explicit bash adds -o pipefail, so a failing pg_dump fails its pipeline.
+    shell: bash
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_S3_ENDPOINT: ${{ secrets.SUPABASE_S3_ENDPOINT }}
+      AWS_REGION: ${{ secrets.SUPABASE_S3_REGION }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.SUPABASE_S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_S3_SECRET_ACCESS_KEY }}
+      # Supabase's S3 endpoint does not accept the CLI's newer default checksums.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      AWS_EC2_METADATA_DISABLED: "true"
+      BUCKET: social-recipe-photos
+      PG_BIN: /usr/lib/postgresql/17/bin
+      RECIPIENT: hosting/backup-recipient.txt
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check configuration
+        run: |
+          missing=0
+          for name in SUPABASE_DB_URL SUPABASE_S3_ENDPOINT AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::Secret for $name is not set. See hosting/RUNBOOK.md, Backups."; missing=1; fi
+          done
+          if grep -q PLACEHOLDER "$RECIPIENT" || ! grep -Eq '^age1[0-9a-z]{58}$' "$RECIPIENT"; then
+            echo "::error file=$RECIPIENT::$RECIPIENT still holds the placeholder. Commit your age public key (age-keygen) before backups can run."
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Install PostgreSQL 17 client and age
+        # pg_dump must be at least the server's major version. Supabase runs
+        # Postgres 15 or 17; the 17 client dumps both.
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends postgresql-client-17 age
+          "$PG_BIN/pg_dump" --version
+          age --version
+          aws --version
+          aws configure set default.s3.addressing_style path
+
+      - name: Prepare private work directory
+        run: |
+          umask 077
+          work="$RUNNER_TEMP/backup"
+          mkdir -p "$work/out" "$work/photos"
+          echo "WORK=$work" >> "$GITHUB_ENV"
+          echo "STAMP=$(date -u +%Y-%m-%dT%H%MZ)" >> "$GITHUB_ENV"
+
+      - name: Dump and encrypt the database
+        id: database
+        # The dump streams straight into age, so no plaintext copy touches disk.
+        # Only the schemas holding app data are dumped: public (cookbooks,
+        # recipes, photos metadata), auth (accounts) and storage (object
+        # metadata). The other schemas are managed by Supabase, hold no app data
+        # and are partly unreadable by the postgres role.
+        run: |
+          umask 077
+          server=$("$PG_BIN/psql" "$SUPABASE_DB_URL" -X -At -v ON_ERROR_STOP=1 -c 'show server_version')
+          echo "Server version: $server"
+          "$PG_BIN/pg_dump" --dbname="$SUPABASE_DB_URL" --format=custom --compress=9 \
+              --schema=public --schema=auth --schema=storage \
+            | age --encrypt --recipients-file "$RECIPIENT" --output "$WORK/out/database-$STAMP.dump.age"
+          echo "rows=$("$PG_BIN/psql" "$SUPABASE_DB_URL" -X -At -v ON_ERROR_STOP=1 -c 'select count(*) from public.social_photos')" >> "$GITHUB_OUTPUT"
+
+      - name: Download and encrypt the photos
+        id: photos
+        env:
+          ROWS: ${{ steps.database.outputs.rows }}
+        run: |
+          umask 077
+          aws s3 sync "s3://$BUCKET" "$WORK/photos" --endpoint-url "$SUPABASE_S3_ENDPOINT" --only-show-errors
+          count=$(find "$WORK/photos" -type f | wc -l | tr -d ' ')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          tar -C "$WORK/photos" -cf - . | age --encrypt --recipients-file "$RECIPIENT" --output "$WORK/out/photos-$STAMP.tar.age"
+          rm -rf "$WORK/photos"
+          if [ "$count" != "$ROWS" ]; then
+            echo "::warning::Downloaded $count photo objects but public.social_photos has $ROWS rows. A photo saved during the backup explains a small difference; a large one needs a look."
+          fi
+
+      - name: Verify the encrypted files
+        env:
+          ROWS: ${{ steps.database.outputs.rows }}
+          OBJECTS: ${{ steps.photos.outputs.count }}
+        run: |
+          for file in "$WORK"/out/*.age; do
+            [ -s "$file" ] || { echo "::error::$file is empty"; exit 1; }
+            head -c 21 "$file" | grep -q '^age-encryption.org/v1' || { echo "::error::$file is not an age file"; exit 1; }
+          done
+          {
+            echo "### Backup $STAMP"
+            echo "| File | Size |"
+            echo "| --- | --- |"
+            for file in "$WORK"/out/*.age; do echo "| $(basename "$file") | $(du -h "$file" | cut -f1) |"; done
+            echo
+            echo "Photos: $OBJECTS objects, $ROWS rows in public.social_photos."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backup-${{ env.STAMP }}
+          path: ${{ env.WORK }}/out/*.age
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Delete unattached photo drafts older than 7 days
+        if: github.event_name == 'schedule' || inputs.cleanup
+        # Rows go first, in one statement that re-checks they are unattached.
+        # The recipe and cover foreign keys mean a deleted row can never be
+        # attached afterwards, so only objects nobody can reference are removed.
+        # Objects left without a row (an interrupted run, a failed upload) are
+        # swept once they are 7 days old, unless so many look orphaned that the
+        # row listing itself is suspect.
+        env:
+          ROWS: ${{ steps.database.outputs.rows }}
+          OBJECTS: ${{ steps.photos.outputs.count }}
+        run: |
+          umask 077
+          if [ "$ROWS" = 0 ] && [ "$OBJECTS" != 0 ]; then
+            echo "::error::The bucket has $OBJECTS objects but no public.social_photos rows are visible. The database role may not see every row; cleanup skipped."
+            exit 1
+          fi
+          psql() { "$PG_BIN/psql" "$SUPABASE_DB_URL" -X -At -v ON_ERROR_STOP=1 "$@"; }
+          s3() { aws --endpoint-url "$SUPABASE_S3_ENDPOINT" "$@"; }
+          psql -c "
+            delete from public.social_photos p
+            where p.created_at < now() - interval '7 days'
+              and not exists (select 1 from public.cookbook_recipes r where r.image_id = p.id)
+              and not exists (select 1 from public.cookbooks c where c.cover_image_id = p.id)
+            returning p.path" > "$WORK/deleted.txt"
+          psql -c 'select path from public.social_photos' | sort > "$WORK/kept.txt"
+          cutoff=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%S)
+          s3 s3api list-objects-v2 --bucket "$BUCKET" --query 'Contents[].[Key,LastModified]' --output text \
+            | awk -v cutoff="$cutoff" '$1 != "None" && $2 < cutoff { print $1 }' | sort > "$WORK/old-objects.txt"
+          comm -23 "$WORK/old-objects.txt" "$WORK/kept.txt" > "$WORK/orphans.txt"
+          orphans=$(grep -c . "$WORK/orphans.txt" || true)
+          # Allow 25 or a tenth of the bucket, whichever is larger.
+          max_orphans=$(( OBJECTS / 10 > 25 ? OBJECTS / 10 : 25 ))
+          if [ "$orphans" -gt "$max_orphans" ]; then
+            echo "::warning::$orphans old objects have no social_photos row. That is more than expected, so they were left in place for a manual look (RUNBOOK, Photo cleanup)."
+            : > "$WORK/orphans.txt"
+          fi
+          sort -u "$WORK/deleted.txt" "$WORK/orphans.txt" > "$WORK/remove.txt"
+          removed=0
+          while read -r key; do
+            # Only ever delete keys shaped like <owner uuid>/<photo uuid>.webp.
+            if [[ ! "$key" =~ ^[0-9a-f-]{36}/[0-9a-f-]{36}\.webp$ ]]; then echo "::warning::Skipped an unexpected object key"; continue; fi
+            if grep -qxF "$key" "$WORK/kept.txt"; then continue; fi
+            s3 s3 rm "s3://$BUCKET/$key" --only-show-errors
+            removed=$((removed + 1))
+          done < "$WORK/remove.txt"
+          echo "Deleted $(grep -c . "$WORK/deleted.txt" || true) draft rows and $removed objects." | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the work directory
+        if: always()
+        run: rm -rf "${WORK:-$RUNNER_TEMP/backup}"
