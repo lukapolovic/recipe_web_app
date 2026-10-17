@@ -16,7 +16,7 @@ if (!config.crons?.some(cron => cron.path === '/api/cron/keepalive' && /^\d+ \d+
 if (pkg.engines?.node !== '24.x') throw new Error('Use Node.js 24.x for the hosted API.');
 
 for (const file of [
-  '../public/palettes.css', '../public/pop.css', '../public/fonts/unbounded.woff2', '../public/index.html', '../public/brand.js', '../public/app.js', '../public/cookbook-store.js', '../public/social.css', '../public/social-ui.css', '../public/social-demo.js',
+  '../public/palettes.css', '../public/pop.css', '../public/fonts/unbounded.woff2', '../public/index.html', '../public/brand.js', '../public/app.js', '../public/vendor/morphdom.js', '../public/cookbook-store.js', '../public/social.css', '../public/social-ui.css', '../public/social-demo.js',
   '../api/index.js', '../server.js', '../social-api.js', '../recipe-photos.js', '../import-error.js', '../hosting/social-schema.sql',
 ]) read(file);
 
