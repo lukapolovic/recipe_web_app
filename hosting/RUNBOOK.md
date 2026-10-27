@@ -50,7 +50,8 @@ GitHub Actions ─ssh (forced command)─▶ pg_dump    ─https─▶ Storage S
 
 ### 1.1 Rent a server
 
-Any VPS provider works. What the stack needs:
+Any VPS provider works, including the free Oracle Cloud server in
+[1.5](#15-oracle-cloud-always-free). What the stack needs:
 
 - **At least 4 GB RAM and 2 vCPU** (the Supabase containers alone use about
   2–3 GB), 40 GB or more of disk, x86-64 or ARM64.
@@ -77,7 +78,8 @@ IP). Buy one, then at your DNS provider add three **A** records pointing at
 
 ### 1.3 Harden the server
 
-SSH in as root (`ssh root@<server>`), then:
+On Oracle Cloud, follow [1.5](#15-oracle-cloud-always-free) instead of this
+section. Otherwise SSH in as root (`ssh root@<server>`), then:
 
 ```bash
 apt update && apt -y full-upgrade && apt -y install unattended-upgrades ufw
@@ -116,6 +118,120 @@ In `/etc/ssh/sshd_config` make sure `PasswordAuthentication no` is set, then
    advisories in 2026 (most need a logged-in user, which is why registration is
    off); staying current matters more than with a hosted service.
 6. **Servers → localhost**: Coolify installed Traefik as the proxy. Leave it on.
+
+### 1.5 Oracle Cloud Always Free
+
+Oracle's Always Free tier includes an Arm (Ampere A1) server that is big enough
+for this stack and costs nothing. The image builds and runs on Arm. Four things
+differ from a normal VPS: the account, Oracle's own firewall, the login user and
+idle reclamation.
+
+**Limits.** In 2026 Oracle reduced the free A1 allowance to **2 OCPU and 12 GB
+RAM** in total (it used to be 4 and 24), plus 200 GB of block storage. Check
+**Governance → Limits, Quotas and Usage** (service *Compute*, `standard-a1`
+limits) before creating anything, and never go over: a tenancy over its free
+limit can have *all* of its A1 instances disabled.
+
+**Account.**
+
+1. Sign up at https://signup.cloud.oracle.com. A card is needed to verify you.
+2. **Home region** cannot be changed later, and free A1 servers can only be
+   created there. Pick an EU region for the privacy page. The most popular
+   regions (Frankfurt, London, Amsterdam) are often out of A1 capacity, so a
+   quieter EU region can be easier.
+3. **Upgrade to Pay As You Go** (**Billing & Cost Management → Upgrade and
+   Manage Payment**). Always Free resources stay free, but on a free-tier
+   account Oracle *reclaims* instances that look idle for 7 days (CPU, network
+   and memory below roughly 15%), which a quiet app will do. Paid accounts are
+   not reclaimed and usually get A1 capacity more easily. The upgrade can take
+   a while to be approved, and the card may see a temporary hold.
+4. Right away, **Billing & Cost Management → Budgets → Create Budget**: monthly,
+   amount `1` (in your currency), alert rule at 1% of actual spend, sent to your
+   email. Any charge at all means something outside the free tier was created.
+
+**Network.**
+
+1. **Networking → Virtual Cloud Networks → Start VCN Wizard → Create VCN with
+   Internet Connectivity**. Name it `cherichef`, keep the defaults, create.
+2. Open the VCN → **Security Lists → Default Security List for cherichef →
+   Add Ingress Rules**: source `0.0.0.0/0`, TCP, destination ports `80`, `443`
+   and `8000` (three rules, or one rule with `80,443,8000`). Port 22 is already
+   open. Remove the `8000` rule once Coolify has its own domain (1.4 step 4).
+
+**Server.**
+
+1. **Compute → Instances → Create instance**, name `cherichef`.
+2. **Image and shape**: image **Canonical Ubuntu 24.04** (the aarch64 build is
+   chosen automatically), shape **Ampere → VM.Standard.A1.Flex** with
+   **2 OCPU and 12 GB** (or less, if other A1 instances already use some).
+3. **Networking**: the `cherichef` VCN's public subnet, **Automatically assign
+   public IPv4 address** on.
+4. **SSH keys**: upload your public key (for example `~/.ssh/id_ed25519.pub`).
+5. **Boot volume**: set the size to `100` GB (within the free 200 GB).
+6. **Create**. If it says *Out of capacity for shape VM.Standard.A1.Flex*, try
+   another availability domain (if your region has more than one), try again a
+   few hours later, or create it with 1 OCPU / 6 GB and resize it later
+   (**Edit → Shape**).
+7. Note the **Public IP address** and use it as `<server>` in 1.2.
+
+**Prepare it.** The login user is `ubuntu`, not root. Wherever this runbook
+says `ssh root@<server>` or "as root on the server", use `ssh ubuntu@<server>`
+and then `sudo -i`.
+
+```bash
+ssh ubuntu@<server>
+```
+
+```bash
+sudo apt update && sudo apt -y full-upgrade && sudo apt -y install unattended-upgrades
+```
+
+Oracle's Ubuntu image has its own `iptables` rules that block every incoming
+port except 22, on top of the security list. Do not install `ufw` (it fights
+with these rules); open the web ports in the existing rules instead:
+
+```bash
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+```
+
+```bash
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+```
+
+```bash
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 8000 -j ACCEPT
+```
+
+```bash
+sudo netfilter-persistent save
+```
+
+Password login is already off on Oracle's images. Then install Coolify as in
+1.4, with `sudo`:
+
+```bash
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | sudo bash
+```
+
+When 1.4 step 4 says to close port 8000, delete the `8000` ingress rule from the
+security list (that is enough; the `iptables` rule can stay).
+
+Finally let `ubuntu` run Docker commands, which the restore steps (section 6)
+use over SSH:
+
+```bash
+sudo usermod -aG docker ubuntu
+```
+
+In section 6 use `TARGET_SSH='ubuntu@<server>'`.
+
+**Domain.** A paid domain works best. For a free option, create two
+subdomains at https://www.duckdns.org (for example `cherichef` and
+`cherichef-db`), point both at `<server>`, and use `cherichef.duckdns.org` as
+`<app>` and `cherichef-db.duckdns.org` as `<supabase>`. Let's Encrypt issues
+certificates for them. The Coolify dashboard can stay on
+`http://<server>:8000` with only your IP allowed in the security list (source
+`<your IP>/32` instead of `0.0.0.0/0`) if you do not want a third subdomain.
 
 ## 2. Supabase
 
@@ -664,7 +780,10 @@ Server and Coolify
 
 - [ ] Server in the chosen location; provider and location named on the privacy
       page
-- [ ] SSH keys only, `ufw` on with 22/80/443, `unattended-upgrades` installed
+- [ ] SSH keys only, firewall open only for 22/80/443 (`ufw`, or on Oracle the
+      security list and `iptables`), `unattended-upgrades` installed
+- [ ] Oracle only: account on Pay As You Go, $1 budget alert, A1 usage within the
+      free limit
 - [ ] Coolify admin claimed with 2FA, registration off, dashboard on
       `https://coolify.<domain>`, port 8000 closed, auto-update on
 
