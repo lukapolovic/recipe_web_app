@@ -24,7 +24,7 @@ npm run dev
 Open http://127.0.0.1:3000. Without a `.env` file the app runs as an offline
 demo: no accounts, nothing leaves your machine, and no configuration is needed.
 To work against a real Supabase project, copy `.env.example` to `.env` and fill
-in `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`.
+in `SUPABASE_URL` and `SUPABASE_ANON_KEY` (or `SUPABASE_PUBLISHABLE_KEY`).
 
 ## Test
 
@@ -34,27 +34,31 @@ npm test
 
 The tests run the real schema in PostgreSQL compiled to WebAssembly (PGlite), so
 no database or network is needed. They also run on every push in GitHub Actions
-and as part of `npm run build`, so a failing test blocks a Vercel deploy.
+and as part of `npm run build` inside the Docker build, so a failing test blocks
+a deploy.
 
 ## Project layout
 
 | Path | What it is |
 | --- | --- |
 | `public/` | The browser app: HTML, CSS, JavaScript, fonts and demo assets |
-| `server.js` | HTTP server: static files, recipe import, photos, the `/api` routes and the keepalive cron |
-| `api/index.js` | Vercel function entry; wraps `server.js` |
+| `server.js` | HTTP server: static files, recipe import, photos and the `/api` routes |
+| `Dockerfile` | Production image: runs the tests, then serves `server.js` on Node 24 |
 | `social-api.js` | Supabase adapter: auth, cookbooks, recipes, reviews, friends, photos |
 | `recipe-import.js`, `public-fetch.js` | Recipe extraction from links and pasted text, with safe fetching |
 | `recipe-model.js`, `meal-plan.js`, `images.js`, `recipe-photos.js` | Validation, meal planner, photo normalisation and storage |
 | `hosting/social-schema.sql` | The complete database schema, policies and storage bucket |
 | `hosting/migrations/` | Upgrades for databases created from an older schema |
 | `hosting/RUNBOOK.md` | Hosting, backups, restore and operations |
+| `hosting/backup-ssh.sh` | Forced SSH command the backup workflow uses to reach the database |
 | `.github/workflows/` | Tests on every push; weekly encrypted backup |
-| `scripts/check-hosting.js` | Build-time check of the Vercel configuration |
+| `scripts/check-hosting.js` | Build-time check of the Docker configuration |
 | `test/` | `node --test` suites |
 
 ## Hosting and operations
 
-Everything needed to launch and run the hosted app (Supabase, email, Vercel,
-backups, restore, reports, schema changes and the pre-launch checklist) is in
+The app is self-hosted on one server: [Coolify](https://github.com/coollabsio/coolify)
+builds and serves it from the `Dockerfile`, next to a self-hosted
+[Supabase](https://github.com/supabase/supabase). Everything needed to launch
+and run it (server, Coolify, Supabase, email, backups, restore, reports, schema changes and the pre-launch checklist) is in
 [hosting/RUNBOOK.md](hosting/RUNBOOK.md).

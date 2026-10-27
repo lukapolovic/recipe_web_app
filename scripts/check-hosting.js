@@ -1,31 +1,35 @@
 import { readFileSync } from 'node:fs';
 
 const read = file => readFileSync(new URL(file, import.meta.url), 'utf8');
-const config = JSON.parse(read('../vercel.json'));
+const dockerfile = read('../Dockerfile');
 const pkg = JSON.parse(read('../package.json'));
+const server = read('../server.js');
 
-if (config.outputDirectory !== 'public') throw new Error('Vercel must serve the public directory.');
-if (!config.rewrites?.some(rule => rule.source === '/api/:path*' && rule.destination === '/api/index')) {
-  throw new Error('The same-origin API route is missing.');
+if (pkg.engines?.node !== '24.x') throw new Error('Use Node.js 24.x for the hosted server.');
+if (!/^FROM node:24[-.\w]* AS test$/m.test(dockerfile) || !/^FROM node:24[-.\w]*$/m.test(dockerfile)) {
+  throw new Error('The Dockerfile must build a test stage and a runtime stage on Node.js 24.');
 }
-if (!config.functions?.['api/index.js']) throw new Error('The Node.js API function is missing.');
-// The daily keepalive stops the Supabase Free plan pausing after 7 idle days.
-if (!config.crons?.some(cron => cron.path === '/api/cron/keepalive' && /^\d+ \d+ \* \* \*$/.test(cron.schedule))) {
-  throw new Error('The daily /api/cron/keepalive cron is missing from vercel.json.');
+// BuildKit skips stages nothing depends on, so the runtime stage must copy from the test stage.
+if (!/^RUN npm run build\b/m.test(dockerfile) || !/^COPY --from=test /m.test(dockerfile)) {
+  throw new Error('The Docker build must run the tests and depend on their result.');
 }
-if (pkg.engines?.node !== '24.x') throw new Error('Use Node.js 24.x for the hosted API.');
+if (!/^ENV .*NODE_ENV=production/m.test(dockerfile) || !/^ENV .*HOST=0\.0\.0\.0/m.test(dockerfile)) {
+  throw new Error('The runtime image must set NODE_ENV=production and listen on 0.0.0.0.');
+}
+if (!/^USER node$/m.test(dockerfile)) throw new Error('The server must not run as root.');
+if (!/^CMD \["node", "server\.js"\]$/m.test(dockerfile)) throw new Error('The image must start server.js.');
 
 for (const file of [
   '../public/palettes.css', '../public/pop.css', '../public/fonts/unbounded.woff2', '../public/index.html', '../public/brand.js', '../public/app.js', '../public/vendor/morphdom.js', '../public/cookbook-store.js', '../public/social.css', '../public/social-ui.css', '../public/social-demo.js',
-  '../api/index.js', '../server.js', '../social-api.js', '../recipe-photos.js', '../import-error.js', '../hosting/social-schema.sql',
+  '../server.js', '../social-api.js', '../recipe-photos.js', '../import-error.js', '../hosting/social-schema.sql', '../hosting/backup-ssh.sh',
 ]) read(file);
 
-const entry = read('../api/index.js');
-if (!entry.includes('SUPABASE_URL') || !entry.includes('SUPABASE_PUBLISHABLE_KEY') || !entry.includes('SUPABASE_ANON_KEY')) {
+// In production the server must refuse to start as the offline demo.
+if (!server.includes("process.env.NODE_ENV === 'production' && !socialConfigured")) {
   throw new Error('Hosted startup must require Supabase account configuration.');
 }
-if (entry.includes('PANTRY_PASSWORD') || entry.includes('SUPABASE_SERVICE_ROLE_KEY')) {
+if (server.includes('PANTRY_PASSWORD') || server.includes('SUPABASE_SERVICE_ROLE_KEY')) {
   throw new Error('The social app uses individual accounts and user permissions, not a shared password or service-role key.');
 }
 
-console.log('Hosting routes and social app source are ready. Configure Supabase, its SQL schema and authentication email before deploying.');
+console.log('Dockerfile and social app source are ready. Configure Supabase, its SQL schema and authentication email before deploying.');

@@ -5,7 +5,7 @@
 -- the signed-in user's access token and the row-level policies below.
 
 -- ---------------------------------------------------------------------------
--- Keepalive. The daily Vercel Cron (GET /api/cron/keepalive) calls this through
+-- Keepalive. Only needed on the supabase.com Free plan: a daily cron (GET /api/cron/keepalive) calls this through
 -- the publishable key so the Free plan sees database activity and does not
 -- pause the project. It reads nothing and runs with the caller's (anon) rights.
 create or replace function public.keepalive() returns timestamptz

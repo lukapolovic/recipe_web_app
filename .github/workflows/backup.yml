@@ -1,5 +1,7 @@
-# Weekly encrypted backup of the Supabase database and recipe photos, followed
-# by cleanup of photo drafts nobody attached. Setup and restore steps live in
+# Weekly encrypted backup of the self-hosted Supabase database and recipe
+# photos, followed by cleanup of photo drafts nobody attached. The database is
+# reached over SSH through a forced command (hosting/backup-ssh.sh) and the
+# photos through Supabase Storage's S3 endpoint. Setup and restore steps live in
 # hosting/RUNBOOK.md. This repository is public, so artifacts can be downloaded
 # by any signed-in GitHub user: only age-encrypted files are ever uploaded, and
 # plaintext only exists in the runner's temporary directory during the job.
@@ -32,7 +34,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_SSH_TARGET: ${{ secrets.BACKUP_SSH_TARGET }}
+      BACKUP_SSH_KEY: ${{ secrets.BACKUP_SSH_KEY }}
+      BACKUP_SSH_KNOWN_HOSTS: ${{ secrets.BACKUP_SSH_KNOWN_HOSTS }}
       SUPABASE_S3_ENDPOINT: ${{ secrets.SUPABASE_S3_ENDPOINT }}
       AWS_REGION: ${{ secrets.SUPABASE_S3_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.SUPABASE_S3_ACCESS_KEY_ID }}
@@ -42,7 +46,6 @@ jobs:
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
       AWS_EC2_METADATA_DISABLED: "true"
       BUCKET: social-recipe-photos
-      PG_BIN: /usr/lib/postgresql/17/bin
       RECIPIENT: hosting/backup-recipient.txt
     steps:
       - uses: actions/checkout@v7
@@ -52,7 +55,7 @@ jobs:
       - name: Check configuration
         run: |
           missing=0
-          for name in SUPABASE_DB_URL SUPABASE_S3_ENDPOINT AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+          for name in BACKUP_SSH_TARGET BACKUP_SSH_KEY BACKUP_SSH_KNOWN_HOSTS SUPABASE_S3_ENDPOINT AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
             if [ -z "${!name}" ]; then echo "::error::Secret for $name is not set. See hosting/RUNBOOK.md, Backups."; missing=1; fi
           done
           if grep -q PLACEHOLDER "$RECIPIENT" || ! grep -Eq '^age1[0-9a-z]{58}$' "$RECIPIENT"; then
@@ -61,16 +64,12 @@ jobs:
           fi
           exit "$missing"
 
-      - name: Install PostgreSQL 17 client and age
-        # pg_dump must be at least the server's major version. Supabase runs
-        # Postgres 15 or 17; the 17 client dumps both.
+      - name: Install age
+        # pg_dump runs on the server, inside the database container, so its
+        # version always matches Postgres. Only age is needed here.
         run: |
-          sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
-          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends postgresql-client-17 age
-          "$PG_BIN/pg_dump" --version
+          sudo apt-get install -y -qq --no-install-recommends age
           age --version
           aws --version
           aws configure set default.s3.addressing_style path
@@ -79,25 +78,24 @@ jobs:
         run: |
           umask 077
           work="$RUNNER_TEMP/backup"
-          mkdir -p "$work/out" "$work/photos"
+          mkdir -p "$work/out" "$work/photos" "$work/ssh"
+          printf '%s\n' "$BACKUP_SSH_KEY" > "$work/ssh/key"
+          printf '%s\n' "$BACKUP_SSH_KNOWN_HOSTS" > "$work/ssh/known_hosts"
           echo "WORK=$work" >> "$GITHUB_ENV"
           echo "STAMP=$(date -u +%Y-%m-%dT%H%MZ)" >> "$GITHUB_ENV"
 
       - name: Dump and encrypt the database
         id: database
-        # The dump streams straight into age, so no plaintext copy touches disk.
-        # Only the schemas holding app data are dumped: public (cookbooks,
-        # recipes, photos metadata), auth (accounts) and storage (object
-        # metadata). The other schemas are managed by Supabase, hold no app data
-        # and are partly unreadable by the postgres role.
+        # The dump streams from the server straight into age, so no plaintext
+        # copy touches disk on either side. Only the schemas holding app data
+        # are dumped: public (cookbooks, recipes, photos metadata), auth
+        # (accounts) and storage (object metadata).
         run: |
           umask 077
-          server=$("$PG_BIN/psql" "$SUPABASE_DB_URL" -X -At -v ON_ERROR_STOP=1 -c 'show server_version')
-          echo "Server version: $server"
-          "$PG_BIN/pg_dump" --dbname="$SUPABASE_DB_URL" --format=custom --compress=9 \
-              --schema=public --schema=auth --schema=storage \
-            | age --encrypt --recipients-file "$RECIPIENT" --output "$WORK/out/database-$STAMP.dump.age"
-          echo "rows=$("$PG_BIN/psql" "$SUPABASE_DB_URL" -X -At -v ON_ERROR_STOP=1 -c 'select count(*) from public.social_photos')" >> "$GITHUB_OUTPUT"
+          db() { ssh -i "$WORK/ssh/key" -o UserKnownHostsFile="$WORK/ssh/known_hosts" -o StrictHostKeyChecking=yes -o BatchMode=yes "$BACKUP_SSH_TARGET" "$1"; }
+          echo "Server version: $(db version)"
+          db dump | age --encrypt --recipients-file "$RECIPIENT" --output "$WORK/out/database-$STAMP.dump.age"
+          echo "rows=$(db count)" >> "$GITHUB_OUTPUT"
 
       - name: Download and encrypt the photos
         id: photos
@@ -157,15 +155,11 @@ jobs:
             echo "::error::The bucket has $OBJECTS objects but no public.social_photos rows are visible. The database role may not see every row; cleanup skipped."
             exit 1
           fi
-          psql() { "$PG_BIN/psql" "$SUPABASE_DB_URL" -X -At -v ON_ERROR_STOP=1 "$@"; }
+          db() { ssh -i "$WORK/ssh/key" -o UserKnownHostsFile="$WORK/ssh/known_hosts" -o StrictHostKeyChecking=yes -o BatchMode=yes "$BACKUP_SSH_TARGET" "$1"; }
           s3() { aws --endpoint-url "$SUPABASE_S3_ENDPOINT" "$@"; }
-          psql -c "
-            delete from public.social_photos p
-            where p.created_at < now() - interval '7 days'
-              and not exists (select 1 from public.cookbook_recipes r where r.image_id = p.id)
-              and not exists (select 1 from public.cookbooks c where c.cover_image_id = p.id)
-            returning p.path" > "$WORK/deleted.txt"
-          psql -c 'select path from public.social_photos' | sort > "$WORK/kept.txt"
+          # The delete statement itself lives in hosting/backup-ssh.sh.
+          db cleanup > "$WORK/deleted.txt"
+          db paths | sort > "$WORK/kept.txt"
           cutoff=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%S)
           s3 s3api list-objects-v2 --bucket "$BUCKET" --query 'Contents[].[Key,LastModified]' --output text \
             | awk -v cutoff="$cutoff" '$1 != "None" && $2 < cutoff { print $1 }' | sort > "$WORK/old-objects.txt"
