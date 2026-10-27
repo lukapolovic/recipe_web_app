@@ -1,73 +1,193 @@
 # ChériChef hosting runbook
 
-How to launch, back up, restore and run ChériChef on Supabase Free and Vercel
-Hobby, on the project's `*.vercel.app` address. Work through the sections in
-order the first time. Later sections are reference for running the app.
+How to launch, back up, restore and run ChériChef on a single server you rent,
+with everything on it open source:
 
-Throughout, `<ref>` is your Supabase project reference (the subdomain of the
-project URL) and `<app>` is your Vercel address, for example
-`cherichef.vercel.app`.
+- **[Coolify](https://github.com/coollabsio/coolify)** (Apache-2.0) is the
+  self-hosted replacement for Vercel. It builds the app from this repository's
+  `Dockerfile` on every push, gives it HTTPS, keeps old builds for rollback and
+  shows logs.
+- **[Supabase](https://github.com/supabase/supabase)** (Apache-2.0) is the same
+  Postgres, Auth and Storage the app used on supabase.com, run from Coolify's
+  official Supabase template. The app talks to it exactly as before: nothing in
+  `social-api.js` or `hosting/social-schema.sql` changes.
 
-1. [Supabase project](#1-supabase-project)
-2. [Auth and email](#2-auth-and-email)
-3. [Vercel](#3-vercel)
-4. [Backups](#4-backups)
-5. [Restore](#5-restore)
-6. [Restore drill](#6-restore-drill)
-7. [Reading reports](#7-reading-reports)
-8. [Photo cleanup](#8-photo-cleanup)
-9. [Schema changes](#9-schema-changes)
-10. [Pre-launch checklist](#10-pre-launch-checklist)
-11. [Later (V2)](#11-later-v2)
+Work through the sections in order the first time. Later sections are reference
+for running the app.
+
+Throughout, `<domain>` is your domain, `<app>` is the app's address (for example
+`cherichef.example.com`), `<supabase>` is the Supabase address (for example
+`supabase.example.com`) and `<server>` is the server's IP address.
+
+```
+              ┌────────────────────── your server ───────────────────────┐
+browser ──https──▶ Traefik (Coolify proxy)                                │
+              │     ├─ <app>      ─▶ ChériChef (Dockerfile, Node 24)      │
+              │     │                    │ https, publishable/anon key    │
+              │     └─ <supabase> ─▶ Kong ─▶ Auth · REST · Storage ─▶ Postgres
+              │                                          └─▶ MinIO (photos)│
+              └───────────────────────────────────────────────────────────┘
+GitHub Actions ─ssh (forced command)─▶ pg_dump    ─https─▶ Storage S3 endpoint
+```
+
+1. [Server and Coolify](#1-server-and-coolify)
+2. [Supabase](#2-supabase)
+3. [Auth and email](#3-auth-and-email)
+4. [The app](#4-the-app)
+5. [Backups](#5-backups)
+6. [Restore](#6-restore)
+7. [Restore drill](#7-restore-drill)
+8. [Updates and upkeep](#8-updates-and-upkeep)
+9. [Reading reports](#9-reading-reports)
+10. [Photo cleanup](#10-photo-cleanup)
+11. [Schema changes](#11-schema-changes)
+12. [Pre-launch checklist](#12-pre-launch-checklist)
+13. [Later (V2)](#13-later-v2)
 
 ---
 
-## 1. Supabase project
+## 1. Server and Coolify
 
-1. Sign in at https://supabase.com/dashboard and create a new project on the
-   Free plan.
-   - **Region:** pick it deliberately. It is where every account, recipe and
-     photo is stored, the privacy page must name it, and it cannot be changed
-     later without moving to a new project. For users in Europe choose an EU
-     region (for example Frankfurt, `eu-central-1`).
-   - **Database password:** generate a long one and save it in your password
-     manager. Backups need it.
-2. Open **SQL Editor → New query**, paste the whole of `hosting/social-schema.sql`
+### 1.1 Rent a server
+
+Any VPS provider works. What the stack needs:
+
+- **At least 4 GB RAM and 2 vCPU** (the Supabase containers alone use about
+  2–3 GB), 40 GB or more of disk, x86-64 or ARM64.
+- **Ubuntu 24.04 LTS.**
+- **Location:** pick it deliberately. It is where every account, recipe and
+  photo is stored, and the privacy page must name it and the provider. For users
+  in Europe choose an EU data centre (for example Hetzner in Falkenstein,
+  Nuremberg or Helsinki).
+
+Add your SSH public key when you create the server, so it never has a root
+password login.
+
+### 1.2 Domain and DNS
+
+HTTPS needs a real domain (Let's Encrypt will not issue certificates for a bare
+IP). Buy one, then at your DNS provider add three **A** records pointing at
+`<server>`:
+
+| Name | Used for |
+| --- | --- |
+| `app` (or `@`) | ChériChef itself, `<app>` |
+| `supabase` | Supabase API and Studio, `<supabase>` |
+| `coolify` | The Coolify dashboard |
+
+### 1.3 Harden the server
+
+SSH in as root (`ssh root@<server>`), then:
+
+```bash
+apt update && apt -y full-upgrade && apt -y install unattended-upgrades ufw
+```
+
+```bash
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 8000/tcp && ufw --force enable
+```
+
+Port 8000 is the Coolify dashboard until it has its own domain (1.4 step 4);
+close it afterwards. Docker publishes container ports around `ufw`, so never map
+a database or MinIO port to the host in Coolify.
+
+In `/etc/ssh/sshd_config` make sure `PasswordAuthentication no` is set, then
+`systemctl reload ssh`.
+
+### 1.4 Install Coolify
+
+1. Read the installer first (https://coolify.io/docs/get-started/installation),
+   then run it as root:
+
+   ```bash
+   curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+   ```
+
+2. **Straight away** open `http://<server>:8000` and create the admin account.
+   The first person to open that page becomes the admin, so do not leave it
+   unclaimed. Use a long generated password and turn on two-factor
+   authentication under your profile.
+3. **Settings**: turn **off** registration ("Registration Allowed"), so nobody else can
+   create an account.
+4. **Settings → Instance's Domain**: `https://coolify.<domain>`.
+   Save, open the dashboard there, then on the server close the temporary port:
+   `ufw delete allow 8000/tcp`.
+5. **Settings → Updates**: turn on auto-update. Coolify had a batch of security
+   advisories in 2026 (most need a logged-in user, which is why registration is
+   off); staying current matters more than with a hosted service.
+6. **Servers → localhost**: Coolify installed Traefik as the proxy. Leave it on.
+
+## 2. Supabase
+
+1. In Coolify: **Projects → + Add** a project called `cherichef`, open its
+   `production` environment, **+ New → Service**, search **Supabase** and add it.
+2. Before the first deploy, open the service:
+   - **Supabase Kong → Domains**: `https://<supabase>:8000` (the `:8000` tells
+     the proxy which container port to use; the public address is plain
+     `https://<supabase>`).
+   - **Environment Variables**: Coolify has already generated every
+     `SERVICE_PASSWORD_*`, JWT and key. Set or change these:
+
+     | Variable | Value |
+     | --- | --- |
+     | `API_EXTERNAL_URL` | `https://<supabase>` (the default is an internal address, and email links would break) |
+     | `GOTRUE_SITE_URL` | `https://<app>` |
+     | `ADDITIONAL_REDIRECT_URLS` | `https://<app>,https://<app>/**` |
+     | `ENABLE_EMAIL_SIGNUP` | `true` |
+     | `ENABLE_EMAIL_AUTOCONFIRM` | `false` (new accounts must click the link) |
+     | `DISABLE_SIGNUP` | `false` |
+
+     The SMTP variables are set in section 3.
+3. **Edit Compose File** and add two lines to the `environment:` lists (keep the
+   indentation of the lines around them):
+   - under `supabase-auth`:
+
+     ```yaml
+     - GOTRUE_RATE_LIMIT_EMAIL_SENT=30
+     ```
+
+     (emails per hour; protects the Gmail account in section 3)
+   - under `supabase-storage`:
+
+     ```yaml
+     - S3_PROTOCOL_ACCESS_KEY_ID=${SERVICE_USER_S3PROTOCOL}
+     - S3_PROTOCOL_ACCESS_KEY_SECRET=${SERVICE_PASSWORD_64_S3PROTOCOL}
+     ```
+
+     (turns on the S3 endpoint the backups use; Coolify generates both values)
+
+   Save. Do not add a `ports:` mapping to any service.
+4. **Deploy** and wait until every container is healthy (a few minutes the
+   first time).
+5. Open `https://<supabase>`. Studio asks for a username and password: they are
+   `SERVICE_USER_ADMIN` and `SERVICE_PASSWORD_ADMIN` in the environment
+   variables.
+6. **SQL Editor → New query**, paste the whole of `hosting/social-schema.sql`
    and run it. It should finish with "Success. No rows returned". It creates the
-   tables, row-level security policies, functions (including `keepalive()`), the
-   private storage bucket and its policies. Run it once on an empty project: it is
-   not meant to be run twice. (If you ran an older copy before the keepalive was
-   added, run only the short `Keepalive.` block near the top of the file.)
-3. Open **Storage**. Confirm the bucket `social-recipe-photos` exists and is
-   marked **Private**. Do not make it public.
-4. Open **Project Settings → API Keys** (or **Connect**). Note the **Project URL**
-   (`https://<ref>.supabase.co`) and the **publishable key** (`sb_publishable_…`).
-   Never use the secret or `service_role` key in the app; the server refuses it.
+   tables, row-level security policies, functions, the private storage bucket
+   and its policies. Run it once on an empty database: it is not meant to be run
+   twice.
+7. **Storage**: confirm the bucket `social-recipe-photos` exists and is marked
+   **Private**. Do not make it public.
+8. Copy these from the environment variables into your password manager, under
+   one entry for the server:
+   - `SERVICE_SUPABASEANON_KEY`: the **anon key**, which the app uses;
+   - `SERVICE_PASSWORD_POSTGRES`, `SERVICE_PASSWORD_JWT`,
+     `SERVICE_USER_ADMIN` / `SERVICE_PASSWORD_ADMIN`;
+   - `SERVICE_USER_S3PROTOCOL` / `SERVICE_PASSWORD_64_S3PROTOCOL` (section 5.3).
 
-Free plan facts that shape the rest of this runbook: the project is paused after
-7 days without activity (section 3 adds a daily keepalive), and the Free plan has
-no backups (section 4 adds a weekly one).
+   Never put `SERVICE_SUPABASESERVICE_KEY` (the service-role key) in the app; the
+   server refuses it.
 
-## 2. Auth and email
+Unlike the Supabase Free plan, a self-hosted project is never paused and has no
+size limits beyond your disk, so there is no keepalive. Backups are still your
+job: section 5.
 
-### URLs
+## 3. Auth and email
 
-**Authentication → URL Configuration**
-
-- **Site URL:** `https://<app>`
-- **Redirect URLs:** add `https://<app>` and `https://<app>/**`
-
-Confirmation links in emails go to the Site URL, so it must be the live address.
-
-### Email confirmation
-
-**Authentication → Sign In / Providers → Email**: keep **Confirm email** turned
-on. New accounts cannot sign in until they click the link.
+Self-hosted Supabase has no built-in mailer, so it needs SMTP from the start.
 
 ### Custom SMTP with a dedicated Gmail account
-
-Supabase's built-in mailer only sends to your own team's addresses, so real
-users need custom SMTP.
 
 1. Create a new Gmail account used only for ChériChef mail (for example
    `cherichef.app@gmail.com`). Do not use your personal account.
@@ -76,82 +196,85 @@ users need custom SMTP.
 3. **Google Account → Security → App passwords** (or
    https://myaccount.google.com/apppasswords): create one named "Supabase". Copy
    the 16-character password; Google shows it once.
-4. In Supabase: **Authentication → Emails → SMTP Settings**, enable custom SMTP:
-   - Sender email: the Gmail address
-   - Sender name: `ChériChef`
-   - Host: `smtp.gmail.com`
-   - Port: `587`
-   - Username: the Gmail address
-   - Password: the app password
-   - Minimum interval between emails: leave the default
-5. **Authentication → Rate Limits**: set **Rate limit for sending emails** to
-   about **30 per hour**. It protects the Gmail account (a consumer account can
-   send roughly 500 messages a day and Google may lock it if it looks like spam).
-6. Optional: under **Authentication → Emails → Templates**, put "ChériChef" in
-   the subjects of "Confirm signup" and "Reset password".
-7. Test: sign up on the live app with an address you own, check the email
-   arrives (and not in spam), click the link, sign in.
+4. In Coolify, in the Supabase service's **Environment Variables**:
+
+   | Variable | Value |
+   | --- | --- |
+   | `SMTP_ADMIN_EMAIL` | the Gmail address (the sender) |
+   | `SMTP_HOST` | `smtp.gmail.com` |
+   | `SMTP_PORT` | `587` |
+   | `SMTP_USER` | the Gmail address |
+   | `SMTP_PASS` | the app password |
+   | `SMTP_SENDER_NAME` | `ChériChef` |
+
+   Save and **Restart** the service.
+5. The email rate limit is the `GOTRUE_RATE_LIMIT_EMAIL_SENT=30` line from
+   section 2. A consumer Gmail account can send roughly 500 messages a day and
+   Google may lock it if it looks like spam.
+6. Test once the app is up (section 4): sign up with an address you own, check
+   the email arrives (and not in spam), click the link, sign in. The link goes
+   to `https://<supabase>/auth/v1/verify…` and then back to `https://<app>`.
 
 There is no CAPTCHA in v1. If signups get abused, the email rate limit caps the
 damage; Turnstile is on the V2 list.
 
-## 3. Vercel
+## 4. The app
 
-1. Go to https://vercel.com/new, import the GitHub repository
-   `lukapolovic/recipe_web_app`. Framework preset: **Other**. Leave the build and
-   output settings alone: `vercel.json` sets them (`npm run build`, output
-   `public`).
-2. Before the first deploy, add **Environment Variables** (Production and
-   Preview):
+1. In the same Coolify project and environment: **+ New → Public Repository**,
+   `https://github.com/lukapolovic/recipe_web_app`, branch `main`, build pack
+   **Dockerfile**. (If the repository ever goes private, use **Private
+   Repository (with GitHub App)** instead.)
+2. **General**:
+   - **Domains**: `https://<app>`
+   - **Ports Exposes**: `3000`
+3. **Environment Variables** (untick **Build Variable** on each: the build does
+   not need them, and the tests clear them anyway):
 
    | Name | Value |
    | --- | --- |
-   | `SUPABASE_URL` | `https://<ref>.supabase.co` |
-   | `SUPABASE_PUBLISHABLE_KEY` | the `sb_publishable_…` key |
-   | `CRON_SECRET` | a random string, for example from `openssl rand -hex 32` |
+   | `SUPABASE_URL` | `https://<supabase>` |
+   | `SUPABASE_ANON_KEY` | the anon key from section 2, step 8 |
 
-   Do not set `NODE_ENV=production` as a build variable: the build runs the test
-   suite, which needs the dev dependencies.
-3. Deploy. The build runs `npm test` and `scripts/check-hosting.js`; any failure
-   stops the deploy and the previous one stays live.
-4. Check the cron: **Project → Settings → Cron Jobs** should list
-   `/api/cron/keepalive` with schedule `17 6 * * *` (daily, 06:17 UTC; Hobby
-   runs it some time within that hour). Crons only run on the production
-   deployment.
-5. Check the keepalive by hand:
+   The image already sets `NODE_ENV=production`, `HOST=0.0.0.0` and
+   `PORT=3000`. In production the server refuses to start without the two
+   variables above rather than falling back to the offline demo.
+4. **Deploy.** The build runs `npm test` and `scripts/check-hosting.js` inside
+   the Docker build; any failure stops the deploy and the previous one stays
+   live. Open `https://<app>`: the page should load with a padlock.
+5. **Deploy on push**: open the app's **Webhooks** tab, set a **GitHub Webhook
+   Secret** (a random string, `openssl rand -hex 32`; never leave it empty),
+   then in GitHub **repository → Settings → Webhooks → Add webhook** paste the
+   URL Coolify shows, content type `application/json`, the same secret, "Just the
+   push event". Pushes to `main` now deploy.
+6. **Rollback:** the **Deployments** tab lists earlier builds; **Redeploy** an
+   older one to go back.
 
-   ```bash
-   curl -s -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/keepalive
-   ```
+The `/api/cron/keepalive` route is not needed on a self-hosted database. Leave
+`CRON_SECRET` unset and the route stays closed (it answers 503).
 
-   Expect `{"ok":true,"at":"…"}`. Without the header it must answer 401. It
-   calls the `public.keepalive()` SQL function through the publishable key, so
-   each run is a real query in Postgres and the project counts as active. After
-   a day, **Logs** in Vercel should show the cron request with status 200.
-
-If the project ever does get paused, restore it from the Supabase dashboard
-(**Restore project**); data is kept, and the keepalive resumes the next day.
-
-## 4. Backups
+## 5. Backups
 
 `.github/workflows/backup.yml` runs every Sunday at 03:41 UTC and on demand. It:
 
-1. dumps the `public`, `auth` and `storage` schemas with `pg_dump` 17 (custom
-   format), streamed straight into `age` so no plaintext copy is written;
-2. downloads the `social-recipe-photos` bucket through Supabase's S3 endpoint,
-   tars it and encrypts it with `age`;
+1. connects to the server over SSH with a key that can only run
+   `hosting/backup-ssh.sh` (no shell). That script runs `pg_dump` inside the
+   database container and streams the `public`, `auth` and `storage` schemas
+   back; the runner pipes them straight into `age`, so no plaintext copy is
+   written anywhere;
+2. downloads the `social-recipe-photos` bucket through Supabase Storage's S3
+   endpoint, tars it and encrypts it with `age`;
 3. uploads only the two `.age` files as a workflow artifact kept for 90 days;
-4. then deletes unattached photo drafts older than 7 days (section 8).
+4. then deletes unattached photo drafts older than 7 days (section 10).
 
 The repository is public, so **anyone signed in to GitHub can download the
 artifacts**. They are useless without your private key, which is why the key is
 never committed and the workflow refuses to run with the placeholder recipient.
 
-The other Postgres schemas (extensions, realtime, vault and so on) are created
-and managed by Supabase, hold no app data and are partly unreadable to the
-`postgres` role, so they are not dumped.
+Coolify has scheduled database backups of its own, but they are not encrypted
+with a key only you hold and are kept next to the data unless you add S3
+storage. This workflow keeps an encrypted copy off the server; use it.
 
-### 4.1 Create the encryption key
+### 5.1 Create the encryption key
 
 On your own computer (`brew install age`, or see https://age-encryption.org):
 
@@ -169,52 +292,94 @@ It prints `Public key: age1…`. Then:
    is unreadable.** Never commit it, email it or put it in GitHub secrets.
 3. Delete any other copies, for example from `Downloads`.
 
-### 4.2 Database connection string (Session pooler)
+### 5.2 Database access over SSH
 
-GitHub's runners have no IPv6, and on the Free plan the direct database
-connection is IPv6-only, so the workflow must use the **Session pooler**.
+The database is not reachable from the internet, and it should stay that way.
+The workflow instead logs in as a `backup` user whose key is pinned to one
+script.
 
-1. In Supabase, click **Connect** (top of the project page) → **Connection
-   string** → **Session pooler**.
-2. Copy the URI. It looks like
-   `postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:5432/postgres`.
-3. Replace `[YOUR-PASSWORD]` with the database password. If the password
-   contains characters such as `@ : / ? # %`, percent-encode them (or reset the
-   password to letters and digits only under **Project Settings → Database**).
-4. Append `?sslmode=require`.
+1. On your computer, make a key just for this:
 
-Use port **5432** (session mode), not 6543 (transaction mode): `pg_dump` needs a
-session.
+   ```bash
+   ssh-keygen -t ed25519 -N '' -C github-backup -f cherichef-backup-ssh
+   ```
 
-### 4.3 Storage S3 access keys
+2. Find the database container's name on the server (Coolify names it
+   `supabase-db-<id>`; it stays the same across redeploys):
 
-1. **Project Settings → Storage → S3 Connection**: make sure the S3 protocol
-   connection is enabled. Note the **Endpoint**
-   (`https://<ref>.storage.supabase.co/storage/v1/s3`) and **Region**.
-2. Under **S3 Access Keys**, click **New access key**, name it "GitHub backup",
-   and copy the **Access key ID** and **Secret access key** (shown once).
+   ```bash
+   docker ps --filter name=supabase-db --format '{{.Names}}'
+   ```
+
+3. As root on the server, create the user, install the script and allow the key
+   only for it. Replace `supabase-db-<id>` and paste the contents of
+   `cherichef-backup-ssh.pub` where shown:
+
+   ```bash
+   useradd --create-home --shell /bin/bash --groups docker backup
+   ```
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/lukapolovic/recipe_web_app/main/hosting/backup-ssh.sh -o /usr/local/bin/cherichef-backup && chmod 755 /usr/local/bin/cherichef-backup
+   ```
+
+   ```bash
+   install -d -m 700 -o backup -g backup ~backup/.ssh
+   ```
+
+   ```bash
+   echo 'restrict,command="/usr/local/bin/cherichef-backup supabase-db-<id>" <contents of cherichef-backup-ssh.pub>' > ~backup/.ssh/authorized_keys && chown backup:backup ~backup/.ssh/authorized_keys && chmod 600 ~backup/.ssh/authorized_keys
+   ```
+
+   Membership of the `docker` group is as powerful as root, which is why the key
+   is restricted to the script. Read `/usr/local/bin/cherichef-backup` once
+   after downloading it, and download it again whenever `hosting/backup-ssh.sh`
+   changes.
+4. Test from your computer. It should print the Postgres version, and any other
+   command should be refused:
+
+   ```bash
+   ssh -i cherichef-backup-ssh backup@<server> version
+   ```
+
+5. Record the server's host key for the workflow (it is how the runner knows it
+   is talking to your server):
+
+   ```bash
+   ssh-keyscan -t ed25519 <server>
+   ```
+
+### 5.3 Storage S3 access keys
+
+These are the `SERVICE_USER_S3PROTOCOL` (access key ID) and
+`SERVICE_PASSWORD_64_S3PROTOCOL` (secret) values from section 2. The endpoint is
+`https://<supabase>/storage/v1/s3` and the region is `us-east-1` (the
+`STORAGE_S3_REGION` in the Supabase service).
 
 These keys can read and delete every object in every bucket, ignoring
-row-level security. Keep them only in GitHub secrets. If they leak, delete them
-here and create new ones.
+row-level security. Keep them only in GitHub secrets and your password manager.
+If they leak, change both variables in Coolify and restart the Supabase service.
 
-### 4.4 GitHub secrets
+### 5.4 GitHub secrets
 
 In GitHub: **repository → Settings → Secrets and variables → Actions → New
 repository secret**. Add:
 
 | Secret | Value |
 | --- | --- |
-| `SUPABASE_DB_URL` | the Session pooler URI from 4.2 |
-| `SUPABASE_S3_ENDPOINT` | the S3 endpoint from 4.3 |
-| `SUPABASE_S3_REGION` | the S3 region from 4.3 |
-| `SUPABASE_S3_ACCESS_KEY_ID` | access key ID from 4.3 |
-| `SUPABASE_S3_SECRET_ACCESS_KEY` | secret access key from 4.3 |
+| `BACKUP_SSH_TARGET` | `backup@<server>` |
+| `BACKUP_SSH_KEY` | the whole private key file `cherichef-backup-ssh` |
+| `BACKUP_SSH_KNOWN_HOSTS` | the line printed by `ssh-keyscan` in 5.2 |
+| `SUPABASE_S3_ENDPOINT` | `https://<supabase>/storage/v1/s3` |
+| `SUPABASE_S3_REGION` | `us-east-1` |
+| `SUPABASE_S3_ACCESS_KEY_ID` | `SERVICE_USER_S3PROTOCOL` |
+| `SUPABASE_S3_SECRET_ACCESS_KEY` | `SERVICE_PASSWORD_64_S3PROTOCOL` |
 
-Secrets are not passed to workflows triggered from forks, and GitHub masks
-their values in logs.
+Then delete `cherichef-backup-ssh` and `cherichef-backup-ssh.pub` from your
+computer (a new key is quick to make if you ever need one). Secrets are not
+passed to workflows triggered from forks, and GitHub masks their values in logs.
 
-### 4.5 Run it once
+### 5.5 Run it once
 
 1. **Actions → Backup → Run workflow**. For the first run you can untick the
    cleanup option.
@@ -222,26 +387,28 @@ their values in logs.
    encrypted files with their sizes and the photo counts. A warning that the
    object count differs from the `social_photos` row count is expected only if
    someone uploaded a photo during the run.
-3. Download the artifact and check you can decrypt it (section 5, steps 1–2),
+3. Download the artifact and check you can decrypt it (section 6, steps 1–2),
    then delete the plaintext.
 
-### 4.6 Keep it running
+### 5.6 Keep it running
 
 - GitHub **disables scheduled workflows in public repositories after 60 days
   without repository activity** and emails you a warning first. When that email
   comes, push any commit or re-enable the workflow under **Actions → Backup**.
-  The Vercel keepalive does not count as repository activity.
 - Each week, glance at **Actions → Backup** or rely on GitHub's failure emails
   (on by default for workflows you trigger or own).
 - Artifacts expire after 90 days, so there are always about 13 weekly backups.
   For a long-term copy, download one now and then and keep it with your files
   (it is already encrypted).
+- If you rebuild the Supabase service under a new name, update the container
+  name in `~backup/.ssh/authorized_keys`.
 
-## 5. Restore
+## 6. Restore
 
-Use this to recover into a new or replacement Supabase project. You need the
-private key, the `age`, `psql`/`pg_restore` (version 17) and `aws` command line
-tools, and a scratch directory on an encrypted disk. Plaintext files below
+Use this to recover into a new or replacement Supabase service (on the same
+server or a new one). You need the private key, the `age`, `pg_restore`
+(version 17) and `aws` command line tools, SSH access to the target server as
+root, and a scratch directory on an encrypted disk. Plaintext files below
 contain every account and recipe: delete them when you are done.
 
 ```bash
@@ -252,7 +419,7 @@ brew install age awscli libpq
 export PATH="$(brew --prefix libpq)/bin:$PATH"
 ```
 
-### 5.1 Get and decrypt the backup
+### 6.1 Get and decrypt the backup
 
 1. In GitHub, open **Actions → Backup**, pick the run, and download the
    `backup-<date>` artifact (a zip). Unzip it into an empty directory, giving
@@ -270,24 +437,25 @@ export PATH="$(brew --prefix libpq)/bin:$PATH"
 
    `pg_restore -l database.dump | head` should list the archive contents.
 
-### 5.2 Prepare the target project
+### 6.2 Prepare the target
 
-1. Create the target Supabase project (section 1, steps 1–3): run the current
-   `hosting/social-schema.sql`, plus any `hosting/migrations/` files not yet
-   folded into it. This recreates tables, policies, functions, grants and the
-   bucket exactly as the code expects.
-2. Get the target's Session pooler URI (section 4.2) and S3 keys (section 4.3):
+1. Set up the target Supabase service (sections 1–3 as needed; section 2 in
+   full): run the current `hosting/social-schema.sql`, plus any
+   `hosting/migrations/` files not yet folded into it. This recreates tables,
+   policies, functions, grants and the bucket exactly as the code expects.
+2. Note the target's database container name (5.2 step 2), its Supabase address
+   and its S3 keys (5.3):
 
    ```bash
-   export TARGET_DB_URL='postgresql://postgres.<target-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require'
+   export TARGET_SSH='root@<target server>' TARGET_DB='supabase-db-<id>' TARGET_SUPABASE='https://<target supabase>'
    ```
 
-### 5.3 Restore the data
+### 6.3 Restore the data
 
 Restore the app tables in `public` and the accounts in `auth.users` and
 `auth.identities` (so everyone keeps their password). The rest of `auth`
 (sessions, tokens, logs) and `storage` are not restored: people sign in again,
-and storage metadata is recreated when the photos are uploaded in 5.4.
+and storage metadata is recreated when the photos are uploaded in 6.4.
 
 ```bash
 pg_restore -l database.dump | grep -E 'TABLE DATA (public [a-z_]+|auth (users|identities)) ' > data.list
@@ -305,7 +473,7 @@ sed -i.orig '/^SET transaction_timeout/d' data.sql
 know. It is harmless on 17.)
 
 ```bash
-psql "$TARGET_DB_URL" -X -v ON_ERROR_STOP=1 --single-transaction -c 'SET session_replication_role = replica' -f data.sql
+ssh "$TARGET_SSH" "docker exec -i $TARGET_DB psql -h 127.0.0.1 -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1 --single-transaction -c 'SET session_replication_role = replica' -f -" < data.sql
 ```
 
 `session_replication_role = replica` turns off triggers and foreign-key checks
@@ -313,21 +481,21 @@ while loading, so table order does not matter and the new-user trigger does not
 create duplicate profiles. Everything loads in one transaction: on any error,
 nothing is changed and you can fix the cause and rerun. If it fails on an
 `auth` table because the target's newer Auth version changed a column, compare
-`\d auth.users` in both projects and edit the column list of that `COPY` line in
-`data.sql`. Every app table points at `auth.users`, so accounts must be restored
-with their original ids. Finding problems like this early is what the restore
-drill is for.
+`\d auth.users` in both databases and edit the column list of that `COPY` line
+in `data.sql`. Every app table points at `auth.users`, so accounts must be
+restored with their original ids. Finding problems like this early is what the
+restore drill is for.
 
-Check the counts against the source (or the backup summary):
+Check the counts against the backup summary:
 
 ```bash
-psql "$TARGET_DB_URL" -X -c 'select (select count(*) from auth.users) users, (select count(*) from public.cookbooks) cookbooks, (select count(*) from public.cookbook_recipes) recipes, (select count(*) from public.social_photos) photos'
+ssh "$TARGET_SSH" "docker exec -i $TARGET_DB psql -h 127.0.0.1 -U supabase_admin -d postgres -X -c 'select (select count(*) from auth.users) users, (select count(*) from public.cookbooks) cookbooks, (select count(*) from public.cookbook_recipes) recipes, (select count(*) from public.social_photos) photos'"
 ```
 
-### 5.4 Re-upload the photos
+### 6.4 Re-upload the photos
 
 ```bash
-export AWS_ACCESS_KEY_ID='<target access key id>' AWS_SECRET_ACCESS_KEY='<target secret>' AWS_REGION='<target region>'
+export AWS_ACCESS_KEY_ID='<target SERVICE_USER_S3PROTOCOL>' AWS_SECRET_ACCESS_KEY='<target SERVICE_PASSWORD_64_S3PROTOCOL>' AWS_REGION='us-east-1'
 ```
 
 ```bash
@@ -339,48 +507,77 @@ aws configure set default.s3.addressing_style path
 ```
 
 ```bash
-aws s3 cp photos/ s3://social-recipe-photos/ --recursive --content-type image/webp --endpoint-url 'https://<target-ref>.storage.supabase.co/storage/v1/s3'
+aws s3 cp photos/ s3://social-recipe-photos/ --recursive --content-type image/webp --endpoint-url "$TARGET_SUPABASE/storage/v1/s3"
 ```
 
 Object keys keep their `<owner>/<photo>.webp` paths, which is what
 `public.social_photos.path` points to, so no database changes are needed.
 
-### 5.5 Switch the app over (real recovery only)
+### 6.5 Switch the app over (real recovery only)
 
-1. In Vercel, change `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` to the new
-   project and redeploy.
-2. Redo section 2 (URLs, SMTP, rate limit) on the new project.
-3. Update the GitHub secrets (4.2–4.4) to the new project and run the backup
-   once.
+1. In Coolify, change the app's `SUPABASE_URL` and `SUPABASE_ANON_KEY` to the
+   new service and redeploy. (A new service has a new JWT secret, so the old
+   anon key no longer works; everyone signs in again.)
+2. Redo section 3 (SMTP) on the new service if you did not already.
+3. Update the backup user's container name (5.2) and the GitHub secrets (5.4) to
+   the new service, and run the backup once.
 4. Delete the plaintext: `rm -rf database.dump data.sql data.sql.orig data.list photos`.
 
-## 6. Restore drill
+## 7. Restore drill
 
-Do this once **before launch**, and again after any large schema change. An
-untested backup is not a backup.
+Do this once **before launch**, and again after any large schema change or
+Supabase upgrade. An untested backup is not a backup.
 
 1. Put some real-looking data in production: two accounts, a shared cookbook,
    a few recipes with photos, a review.
 2. Run the Backup workflow (with cleanup off).
-3. Create a scratch Supabase project (the Free plan allows two active projects).
-4. Follow section 5 in full into the scratch project (skip 5.5).
-5. Point a local copy of the app at it: in `.env` set `SUPABASE_URL` and
-   `SUPABASE_PUBLISHABLE_KEY` to the scratch project, then `npm start`.
-   Before signing in, in the scratch project add `http://127.0.0.1:3000` to
-   **Authentication → URL Configuration → Redirect URLs**.
+3. In Coolify, create a second environment in the project (for example
+   `drill`) and add a second Supabase service there (section 2, steps 1–8, with
+   `https://drill-supabase.<domain>` and a matching DNS record; skip SMTP).
+   Expect it to use another 2–3 GB of RAM while it runs.
+4. Follow section 6 in full into the drill service (skip 6.5).
+5. Point a local copy of the app at it: in `.env` set
+   `SUPABASE_URL=https://drill-supabase.<domain>` and `SUPABASE_ANON_KEY` to the
+   drill service's anon key, then `npm start`. Before signing in, set the drill
+   service's `ADDITIONAL_REDIRECT_URLS` to `http://127.0.0.1:3000` and restart
+   it.
 6. Sign in with one of the production accounts and its existing password.
    Check the cookbook, recipes, photos, review and partner are all there.
 7. Write the date and anything that went wrong at the bottom of this file.
-8. Delete the plaintext files, remove the scratch values from `.env`, and delete
-   the scratch project (**Project Settings → General → Delete project**).
+8. Delete the plaintext files, remove the drill values from `.env`, and delete
+   the drill service in Coolify (tick the option to delete its volumes) and its
+   DNS record.
 
-## 7. Reading reports
+## 8. Updates and upkeep
+
+Running your own server means these are now your job.
+
+- **Operating system:** `unattended-upgrades` (1.3) installs security updates.
+  Once a month, `ssh root@<server>`, run `apt update && apt -y full-upgrade` and
+  reboot if it asks (`[ -f /var/run/reboot-required ] && reboot`). The app is
+  down for about a minute.
+- **Coolify:** auto-update (1.4) keeps it current. Glance at
+  https://github.com/coollabsio/coolify/security/advisories now and then.
+- **Supabase:** Coolify updates the template, not your running service. Every
+  few months, before upgrading: run the Backup workflow, then redeploy the
+  service with the latest images (Coolify's pull-latest option on the service, or
+  newer image tags in its compose file). Do a restore drill (section 7) after a major Postgres version
+  change.
+- **Disk:** check with `df -h` on the server. Coolify cleans up old Docker
+  images on its own; photos are capped per user by the app.
+- **Monitoring:** Coolify can email you when a deploy fails or a container
+  stops (**Notifications**). Add a free external uptime check on
+  `https://<app>` (for example Uptime Kuma on another machine, or any hosted
+  uptime monitor) so you hear about outages the server cannot report itself.
+
+## 9. Reading reports
 
 People can report profiles, cookbooks, recipes, reviews and replies. Reports go
-to `public.reports` and are only visible to you in the Supabase dashboard
-(reporters only see their own). Check weekly, or more often after launch.
+to `public.reports` and are only visible to you in Supabase Studio (reporters
+only see their own). Check weekly, or more often after launch.
 
-**SQL Editor**, newest first, with the reporter:
+**Studio → SQL Editor** (`https://<supabase>`), newest first, with the
+reporter:
 
 ```sql
 select r.created_at, r.reason, r.target_type, r.target_id, r.note, p.username as reporter
@@ -407,7 +604,7 @@ To take content down, delete that row in the SQL editor. Photos that become
 unattached that way are removed by the weekly cleanup after 7 days. Reports keep
 plain ids, so they remain after the content is gone.
 
-## 8. Photo cleanup
+## 10. Photo cleanup
 
 Photos are uploaded as drafts before a recipe or cover is saved. A draft that
 is never attached (an abandoned edit) is a row in `public.social_photos` that no
@@ -415,9 +612,10 @@ is never attached (an abandoned edit) is a row in `public.social_photos` that no
 each successful backup, the workflow:
 
 1. deletes draft rows older than 7 days in one statement that re-checks they are
-   still unattached. Because recipes and covers reference photos with foreign
-   keys, a deleted row can never be attached afterwards, and a photo attached
-   while the job runs is not deleted;
+   still unattached (the `cleanup` action in `hosting/backup-ssh.sh`). Because
+   recipes and covers reference photos with foreign keys, a deleted row can
+   never be attached afterwards, and a photo attached while the job runs is not
+   deleted;
 2. deletes the storage objects of exactly those rows;
 3. also deletes objects older than 7 days that have no `social_photos` row at all
    (left by an interrupted cleanup, a failed upload, or an account deletion that
@@ -433,7 +631,7 @@ each successful backup, the workflow:
 
 Run the workflow with cleanup unticked to skip all of this.
 
-## 9. Schema changes
+## 11. Schema changes
 
 `hosting/social-schema.sql` always describes a fresh, complete database. Live
 databases are upgraded with numbered migration files.
@@ -452,32 +650,39 @@ databases are upgraded with numbered migration files.
    migration **twice**, and asserts the result (see
    `test/photo-cleanup.test.js` for the setup of Supabase's `auth`/`storage`
    stand-ins).
-3. Fold the same change into `social-schema.sql` so new projects get it, and
+3. Fold the same change into `social-schema.sql` so new databases get it, and
    run `npm test`: the RLS tests run against the folded schema.
 4. Before running it on production, run the Backup workflow. Then paste the
-   migration into the Supabase **SQL Editor** and run it. Deploy the code that
-   needs it afterwards.
+   migration into **Studio → SQL Editor** and run it. Deploy the code that needs
+   it afterwards.
 5. Keep the migration file in the repository: a restore uses
-   `social-schema.sql`, but an older project may still need the file.
+   `social-schema.sql`, but an older database may still need the file.
 
-## 10. Pre-launch checklist
+## 12. Pre-launch checklist
+
+Server and Coolify
+
+- [ ] Server in the chosen location; provider and location named on the privacy
+      page
+- [ ] SSH keys only, `ufw` on with 22/80/443, `unattended-upgrades` installed
+- [ ] Coolify admin claimed with 2FA, registration off, dashboard on
+      `https://coolify.<domain>`, port 8000 closed, auto-update on
 
 Supabase
 
-- [ ] Project created in the chosen region; region named on the privacy page
+- [ ] Service healthy at `https://<supabase>`; `API_EXTERNAL_URL`,
+      `GOTRUE_SITE_URL` and `ADDITIONAL_REDIRECT_URLS` set
 - [ ] `hosting/social-schema.sql` run; bucket `social-recipe-photos` is private
-- [ ] Site URL and redirect URLs set to `https://<app>`
-- [ ] Confirm email on; custom SMTP via the dedicated Gmail account (app password,
-      `smtp.gmail.com:587`, sender name ChériChef); test email received
-- [ ] Email rate limit about 30/hour
-- [ ] Database password and Gmail app password stored in the password manager
+- [ ] Email confirmation on; SMTP via the dedicated Gmail account; rate limit 30
+      per hour; test email received
+- [ ] Postgres, JWT, Studio and S3 secrets and the Gmail app password stored in
+      the password manager
 
-Vercel
+App
 
-- [ ] `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `CRON_SECRET` set
-- [ ] Production deploy green (tests ran in the build)
-- [ ] Cron Jobs lists `/api/cron/keepalive`; manual `curl` returns `ok`; without
-      the secret it returns 401
+- [ ] `SUPABASE_URL` and `SUPABASE_ANON_KEY` set; deploy green (tests ran in the
+      build); `https://<app>` loads over HTTPS
+- [ ] GitHub webhook with a secret; a push to `main` deploys
 - [ ] Sign up, confirm, sign in, create a cookbook, invite a partner, import a
       recipe with a photo, review it, delete a test account
 
@@ -485,24 +690,30 @@ Backups
 
 - [ ] Real age public key committed in `hosting/backup-recipient.txt`
 - [ ] Private key stored in two places
-- [ ] Five GitHub secrets set
+- [ ] `backup` user with the forced command; `ssh … version` works, other
+      commands are refused
+- [ ] Seven GitHub secrets set
 - [ ] Backup workflow run manually and green; artifact decrypts
-- [ ] Restore drill (section 6) done and dated below
+- [ ] Restore drill (section 7) done and dated below
 - [ ] Tests workflow green on `main`
 
 Safety
 
 - [ ] Privacy and terms pages reviewed and reachable from the app
-- [ ] You know how to read reports (section 7) and take content down
+- [ ] You know how to read reports (section 9) and take content down
+- [ ] External uptime check and Coolify notifications set up
 
-## 11. Later (V2)
+## 13. Later (V2)
 
-- Report queue, blocking and admin tools instead of SQL in the dashboard
+- Report queue, blocking and admin tools instead of SQL in Studio
 - Cloudflare Turnstile on signup
 - Per-user rate limit for recipe imports
 - Measured evaluation of calling Supabase directly with supabase-js instead of
   proxying through the server
-- Own domain, and transactional email through Resend instead of Gmail
+- Transactional email through a proper provider (or a self-hosted mail relay)
+  instead of Gmail
+- Remove the keepalive route and SQL function, which only the Supabase Free plan
+  needed
 
 ---
 

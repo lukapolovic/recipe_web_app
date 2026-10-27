@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+node_modules
+data
+coverage
+.env
+.env.*
+!.env.example
+*.zip
+*.key
+.DS_Store

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 
-// Keep in sync with the cleanup step in .github/workflows/backup.yml.
+// Keep in sync with the cleanup action in hosting/backup-ssh.sh, which the backup workflow runs.
 const CLEANUP = `
   delete from public.social_photos p
   where p.created_at < now() - interval '7 days'
@@ -13,9 +13,9 @@ const CLEANUP = `
   returning p.path`;
 
 test('weekly cleanup deletes only unattached photo rows older than 7 days', async () => {
-  const workflow = await readFile(new URL('../.github/workflows/backup.yml', import.meta.url), 'utf8');
+  const script = await readFile(new URL('../hosting/backup-ssh.sh', import.meta.url), 'utf8');
   const squash = text => text.replace(/\s+/g, ' ').trim();
-  assert.ok(squash(workflow).includes(squash(CLEANUP)), 'The workflow runs the statement tested here');
+  assert.ok(squash(script).includes(squash(CLEANUP)), 'The backup script runs the statement tested here');
   const db = new PGlite();
   try {
     await db.exec(`

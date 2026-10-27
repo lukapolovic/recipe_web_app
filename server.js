@@ -15,7 +15,6 @@ const root = dirname(fileURLToPath(import.meta.url));
 const publicRoot = resolve(root, 'public');
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
 const MAX_BODY = 256 * 1024;
-// Keep in sync with vercel.json, which applies the same headers in production.
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 const PHOTO_TYPE = /^image\/(?:jpeg|png|webp)(?:;|$)/i;
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -61,7 +60,8 @@ export function createApp({
   const socialKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
   const socialConfigured = suppliedSocialApi || process.env.SUPABASE_URL && socialKey;
   if (!suppliedSocialApi && (process.env.SUPABASE_URL || socialKey) && !socialConfigured) throw new Error('Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY).');
-  if (process.env.VERCEL && !socialConfigured) throw new Error('Hosted deployments require Supabase accounts and storage.');
+  // The Docker image sets NODE_ENV=production, so a deploy never falls back to the offline demo.
+  if (process.env.NODE_ENV === 'production' && !socialConfigured) throw new Error('Hosted deployments require Supabase accounts and storage: set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY).');
   const social = suppliedSocialApi || (socialConfigured ? createSocialApi({ url: process.env.SUPABASE_URL, key: socialKey }) : null);
   const photos = createRecipePhotos({ store: social ? socialPhotoStore(social) : demoPhotoStore(), fetchImage });
   // Hosted accounts live under /api/social; the local demo uses the same routes without the prefix.
@@ -101,7 +101,7 @@ export function createApp({
         const route = url.pathname.startsWith(`${base}/`) ? url.pathname.slice(base.length) : '';
         // Signing in comes first, so unauthenticated requests stop before any body is read.
         const who = async () => ({ user: social ? await social.authenticate(request.headers) : undefined, headers: request.headers });
-        // Vercel Cron sends Authorization: Bearer $CRON_SECRET. Without a secret
+        // A scheduler sends Authorization: Bearer $CRON_SECRET. Without a secret
         // configured the route stays closed rather than open to anyone.
         if (url.pathname === '/api/cron/keepalive') {
           if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
