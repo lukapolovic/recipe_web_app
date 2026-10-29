@@ -411,7 +411,7 @@ It prints `Public key: age1…`. Then:
 ### 5.2 Database access over SSH
 
 The database is not reachable from the internet, and it should stay that way.
-The workflow instead logs in as a `backup` user whose key is pinned to one
+The workflow instead logs in as a `cherichef-backup` user whose key is pinned to one
 script.
 
 1. On your computer, make a key just for this:
@@ -432,7 +432,7 @@ script.
    `cherichef-backup-ssh.pub` where shown:
 
    ```bash
-   useradd --create-home --shell /bin/bash --groups docker backup
+   useradd --create-home --shell /bin/bash --groups docker cherichef-backup
    ```
 
    ```bash
@@ -440,13 +440,14 @@ script.
    ```
 
    ```bash
-   install -d -m 700 -o backup -g backup ~backup/.ssh
+   install -d -m 700 -o cherichef-backup -g cherichef-backup ~cherichef-backup/.ssh
    ```
 
    ```bash
-   echo 'restrict,command="/usr/local/bin/cherichef-backup supabase-db-<id>" <contents of cherichef-backup-ssh.pub>' > ~backup/.ssh/authorized_keys && chown backup:backup ~backup/.ssh/authorized_keys && chmod 600 ~backup/.ssh/authorized_keys
+   echo 'restrict,command="/usr/local/bin/cherichef-backup supabase-db-<id>" <contents of cherichef-backup-ssh.pub>' > ~cherichef-backup/.ssh/authorized_keys && chown cherichef-backup:cherichef-backup ~cherichef-backup/.ssh/authorized_keys && chmod 600 ~cherichef-backup/.ssh/authorized_keys
    ```
 
+   (Ubuntu already has a system user called `backup`, hence the longer name.)
    Membership of the `docker` group is as powerful as root, which is why the key
    is restricted to the script. Read `/usr/local/bin/cherichef-backup` once
    after downloading it, and download it again whenever `hosting/backup-ssh.sh`
@@ -455,7 +456,7 @@ script.
    command should be refused:
 
    ```bash
-   ssh -i cherichef-backup-ssh backup@<server> version
+   ssh -i cherichef-backup-ssh cherichef-backup@<server> version
    ```
 
 5. Record the server's host key for the workflow (it is how the runner knows it
@@ -483,7 +484,7 @@ repository secret**. Add:
 
 | Secret | Value |
 | --- | --- |
-| `BACKUP_SSH_TARGET` | `backup@<server>` |
+| `BACKUP_SSH_TARGET` | `cherichef-backup@<server>` |
 | `BACKUP_SSH_KEY` | the whole private key file `cherichef-backup-ssh` |
 | `BACKUP_SSH_KNOWN_HOSTS` | the line printed by `ssh-keyscan` in 5.2 |
 | `SUPABASE_S3_ENDPOINT` | `https://<supabase>/storage/v1/s3` |
@@ -517,7 +518,7 @@ passed to workflows triggered from forks, and GitHub masks their values in logs.
   For a long-term copy, download one now and then and keep it with your files
   (it is already encrypted).
 - If you rebuild the Supabase service under a new name, update the container
-  name in `~backup/.ssh/authorized_keys`.
+  name in `~cherichef-backup/.ssh/authorized_keys`.
 
 ## 6. Restore
 
@@ -635,7 +636,7 @@ Object keys keep their `<owner>/<photo>.webp` paths, which is what
    new service and redeploy. (A new service has a new JWT secret, so the old
    anon key no longer works; everyone signs in again.)
 2. Redo section 3 (SMTP) on the new service if you did not already.
-3. Update the backup user's container name (5.2) and the GitHub secrets (5.4) to
+3. Update the `cherichef-backup` user's container name (5.2) and the GitHub secrets (5.4) to
    the new service, and run the backup once.
 4. Delete the plaintext: `rm -rf database.dump data.sql data.sql.orig data.list photos`.
 
@@ -809,7 +810,7 @@ Backups
 
 - [ ] Real age public key committed in `hosting/backup-recipient.txt`
 - [ ] Private key stored in two places
-- [ ] `backup` user with the forced command; `ssh … version` works, other
+- [ ] `cherichef-backup` user with the forced command; `ssh … version` works, other
       commands are refused
 - [ ] Seven GitHub secrets set
 - [ ] Backup workflow run manually and green; artifact decrypts

@@ -58,7 +58,7 @@ jobs:
           for name in BACKUP_SSH_TARGET BACKUP_SSH_KEY BACKUP_SSH_KNOWN_HOSTS SUPABASE_S3_ENDPOINT AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
             if [ -z "${!name}" ]; then echo "::error::Secret for $name is not set. See hosting/RUNBOOK.md, Backups."; missing=1; fi
           done
-          if grep -q PLACEHOLDER "$RECIPIENT" || ! grep -Eq '^age1[0-9a-z]{58}$' "$RECIPIENT"; then
+          if grep -q '^PLACEHOLDER' "$RECIPIENT" || ! grep -Eq '^age1[0-9a-z]{58}$' "$RECIPIENT"; then
             echo "::error file=$RECIPIENT::$RECIPIENT still holds the placeholder. Commit your age public key (age-keygen) before backups can run."
             missing=1
           fi

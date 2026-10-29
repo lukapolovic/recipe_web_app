@@ -1,6 +1,5 @@
 # age public key that the weekly backup workflow encrypts to.
-# Replace the PLACEHOLDER line below with the "Public key: age1..." value printed
-# by `age-keygen -o cherichef-backup.key` (see hosting/RUNBOOK.md, "Backups").
+# The line below is the "Public key: age1..." value printed by
+# `age-keygen -o cherichef-backup.key` (see hosting/RUNBOOK.md, "Backups").
 # Only the public key belongs here. Never commit the private key.
-# The backup workflow fails until this file holds a real age1... key.
-PLACEHOLDER-replace-with-your-age-public-key
+age1gjn2hs3qf7l065d3msjas5frdc0lxm5vsgsjy5ffgc3990s0ra3qlee30a
