@@ -583,11 +583,13 @@ pg_restore --data-only --use-list=data.list --file=data.sql database.dump
 ```
 
 ```bash
-sed -i.orig '/^SET transaction_timeout/d' data.sql
+sed -i.orig -E '/^SET transaction_timeout/d; /^\\(un)?restrict /d' data.sql
 ```
 
-(The `sed` removes a setting `pg_restore` 17 writes that Postgres 15 does not
-know. It is harmless on 17.)
+(The `sed` removes lines newer `pg_restore` versions write that Postgres 15's
+`psql` does not know: the `transaction_timeout` setting (17+) and the
+`\restrict`/`\unrestrict` guard lines (17.6+ and 18). It is harmless on newer
+servers.)
 
 ```bash
 ssh "$TARGET_SSH" "docker exec -i $TARGET_DB psql -h 127.0.0.1 -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1 --single-transaction -c 'SET session_replication_role = replica' -f -" < data.sql
