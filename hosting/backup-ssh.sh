@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Forced command for the backup workflow's SSH key (hosting/RUNBOOK.md, 4.2).
 # Installed on the server as /usr/local/bin/cherichef-backup and named in
-# ~backup/.ssh/authorized_keys as
+# ~cherichef-backup/.ssh/authorized_keys as
 #
 #   restrict,command="/usr/local/bin/cherichef-backup <db container>" ssh-ed25519 AAAA… github-backup
 #

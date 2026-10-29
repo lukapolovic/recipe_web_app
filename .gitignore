@@ -4,3 +4,6 @@ data/*.sqlite*
 .DS_Store
 coverage/
 recipe_web_app_before_optimization.zip
+# Backup keys must never be committed (hosting/RUNBOOK.md, Backups).
+*.key
+cherichef-backup-ssh*
