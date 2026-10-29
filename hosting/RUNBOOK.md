@@ -246,6 +246,7 @@ certificates for them. The Coolify dashboard can stay on
 
      | Variable | Value |
      | --- | --- |
+     | `POSTGRES_DB` | `postgres` (Coolify refuses to save the service, with "The Database Name field is required", while this is empty) |
      | `API_EXTERNAL_URL` | `https://<supabase>` (the default is an internal address, and email links would break) |
      | `GOTRUE_SITE_URL` | `https://<app>` |
      | `ADDITIONAL_REDIRECT_URLS` | `https://<app>,https://<app>/**` |
@@ -847,4 +848,4 @@ Safety
 
 | Date | Backup used | Result / notes |
 | --- | --- | --- |
-| | | |
+| 2026-10-29 | `backup-2026-10-29T1934Z` | **Pass.** Restored into a second Supabase service on the same server (Coolify environment `drill`): 1 account, 1 cookbook, 2 recipes, 1 photo. Signed in locally with the production account's existing password; cookbook, recipes and photo all present. Found and fixed on the way: `aws s3 sync`/`cp` fail with SignatureDoesNotMatch behind the proxy (backup and restore now use `s3api`); `pg_restore` 18 writes `\restrict` lines Postgres 15's `psql` rejects (added to the `sed` in 6.3); Coolify refuses to save a Supabase service until `POSTGRES_DB=postgres` is set (added to section 2). |
