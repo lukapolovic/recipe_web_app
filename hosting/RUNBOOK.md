@@ -624,8 +624,12 @@ aws configure set default.s3.addressing_style path
 ```
 
 ```bash
-aws s3 cp photos/ s3://social-recipe-photos/ --recursive --content-type image/webp --endpoint-url "$TARGET_SUPABASE/storage/v1/s3"
+(cd photos && find . -type f -name '*.webp' | sed 's|^\./||') | while read -r key; do aws s3api put-object --bucket social-recipe-photos --key "$key" --body "photos/$key" --content-type image/webp --endpoint-url "$TARGET_SUPABASE/storage/v1/s3" > /dev/null && echo "uploaded $key"; done
 ```
+
+Use `aws s3api`, not `aws s3 cp`/`sync`: the high-level commands add conditional
+headers that Supabase Storage's signature check rejects behind its proxy
+(`SignatureDoesNotMatch`), while the plain object calls work.
 
 Object keys keep their `<owner>/<photo>.webp` paths, which is what
 `public.social_photos.path` points to, so no database changes are needed.
