@@ -103,7 +103,20 @@ jobs:
           ROWS: ${{ steps.database.outputs.rows }}
         run: |
           umask 077
-          aws s3 sync "s3://$BUCKET" "$WORK/photos" --endpoint-url "$SUPABASE_S3_ENDPOINT" --only-show-errors
+          # Objects are listed and fetched one by one with s3api. The high-level
+          # `aws s3 sync`/`cp` download with extra conditional headers that
+          # Supabase Storage's signature check rejects behind its proxy
+          # (SignatureDoesNotMatch), while plain GetObject works.
+          s3() { aws --endpoint-url "$SUPABASE_S3_ENDPOINT" "$@"; }
+          # A failed listing fails the step; an empty bucket ("None") is fine.
+          s3 s3api list-objects-v2 --bucket "$BUCKET" --query 'Contents[].Key' --output text > "$WORK/list.txt"
+          tr '\t' '\n' < "$WORK/list.txt" | { grep -v -e '^None$' -e '^$' || true; } > "$WORK/keys.txt"
+          while read -r key; do
+            # Only keys shaped like <owner uuid>/<photo uuid>.webp, so a key can never escape the work directory.
+            if [[ ! "$key" =~ ^[0-9a-f-]{36}/[0-9a-f-]{36}\.webp$ ]]; then echo "::warning::Skipped an unexpected object key"; continue; fi
+            mkdir -p "$WORK/photos/${key%/*}"
+            s3 s3api get-object --bucket "$BUCKET" --key "$key" "$WORK/photos/$key" > /dev/null
+          done < "$WORK/keys.txt"
           count=$(find "$WORK/photos" -type f | wc -l | tr -d ' ')
           echo "count=$count" >> "$GITHUB_OUTPUT"
           tar -C "$WORK/photos" -cf - . | age --encrypt --recipients-file "$RECIPIENT" --output "$WORK/out/photos-$STAMP.tar.age"
@@ -177,7 +190,7 @@ jobs:
             # Only ever delete keys shaped like <owner uuid>/<photo uuid>.webp.
             if [[ ! "$key" =~ ^[0-9a-f-]{36}/[0-9a-f-]{36}\.webp$ ]]; then echo "::warning::Skipped an unexpected object key"; continue; fi
             if grep -qxF "$key" "$WORK/kept.txt"; then continue; fi
-            s3 s3 rm "s3://$BUCKET/$key" --only-show-errors
+            s3 s3api delete-object --bucket "$BUCKET" --key "$key" > /dev/null
             removed=$((removed + 1))
           done < "$WORK/remove.txt"
           echo "Deleted $(grep -c . "$WORK/deleted.txt" || true) draft rows and $removed objects." | tee -a "$GITHUB_STEP_SUMMARY"

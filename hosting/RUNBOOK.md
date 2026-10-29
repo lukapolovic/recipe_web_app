@@ -246,6 +246,7 @@ certificates for them. The Coolify dashboard can stay on
 
      | Variable | Value |
      | --- | --- |
+     | `POSTGRES_DB` | `postgres` (Coolify refuses to save the service, with "The Database Name field is required", while this is empty) |
      | `API_EXTERNAL_URL` | `https://<supabase>` (the default is an internal address, and email links would break) |
      | `GOTRUE_SITE_URL` | `https://<app>` |
      | `ADDITIONAL_REDIRECT_URLS` | `https://<app>,https://<app>/**` |
@@ -583,11 +584,13 @@ pg_restore --data-only --use-list=data.list --file=data.sql database.dump
 ```
 
 ```bash
-sed -i.orig '/^SET transaction_timeout/d' data.sql
+sed -i.orig -E '/^SET transaction_timeout/d; /^\\(un)?restrict /d' data.sql
 ```
 
-(The `sed` removes a setting `pg_restore` 17 writes that Postgres 15 does not
-know. It is harmless on 17.)
+(The `sed` removes lines newer `pg_restore` versions write that Postgres 15's
+`psql` does not know: the `transaction_timeout` setting (17+) and the
+`\restrict`/`\unrestrict` guard lines (17.6+ and 18). It is harmless on newer
+servers.)
 
 ```bash
 ssh "$TARGET_SSH" "docker exec -i $TARGET_DB psql -h 127.0.0.1 -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1 --single-transaction -c 'SET session_replication_role = replica' -f -" < data.sql
@@ -624,8 +627,12 @@ aws configure set default.s3.addressing_style path
 ```
 
 ```bash
-aws s3 cp photos/ s3://social-recipe-photos/ --recursive --content-type image/webp --endpoint-url "$TARGET_SUPABASE/storage/v1/s3"
+(cd photos && find . -type f -name '*.webp' | sed 's|^\./||') | while read -r key; do aws s3api put-object --bucket social-recipe-photos --key "$key" --body "photos/$key" --content-type image/webp --endpoint-url "$TARGET_SUPABASE/storage/v1/s3" > /dev/null && echo "uploaded $key"; done
 ```
+
+Use `aws s3api`, not `aws s3 cp`/`sync`: the high-level commands add conditional
+headers that Supabase Storage's signature check rejects behind its proxy
+(`SignatureDoesNotMatch`), while the plain object calls work.
 
 Object keys keep their `<owner>/<photo>.webp` paths, which is what
 `public.social_photos.path` points to, so no database changes are needed.
@@ -841,4 +848,4 @@ Safety
 
 | Date | Backup used | Result / notes |
 | --- | --- | --- |
-| | | |
+| 2026-10-29 | `backup-2026-10-29T1934Z` | **Pass.** Restored into a second Supabase service on the same server (Coolify environment `drill`): 1 account, 1 cookbook, 2 recipes, 1 photo. Signed in locally with the production account's existing password; cookbook, recipes and photo all present. Found and fixed on the way: `aws s3 sync`/`cp` fail with SignatureDoesNotMatch behind the proxy (backup and restore now use `s3api`); `pg_restore` 18 writes `\restrict` lines Postgres 15's `psql` rejects (added to the `sed` in 6.3); Coolify refuses to save a Supabase service until `POSTGRES_DB=postgres` is set (added to section 2). |
