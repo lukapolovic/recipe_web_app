@@ -224,7 +224,8 @@ export async function createDemoStore({ loadDemoData, storage = defaultStorage()
       data.cookbooks = data.cookbooks.filter(b => b.id !== row.id); data.recipes = data.recipes.filter(r => !ids.has(r.id)); data.reviews = data.reviews.filter(r => !ids.has(r.recipeId)); data.replies = data.replies.filter(r => !reviewIds.has(r.reviewId)); data.memberships = data.memberships.filter(m => m.cookbookId !== row.id); data.follows = data.follows.filter(f => f.cookbookId !== row.id); delete data.plans[row.id];
     } else if ((match = path.match(/^\/cookbooks\/([^/]+)\/invite$/))) {
       const recipient = byUsername(input.username); if (!recipient) throw new Error('That username was not found in the preview kitchen.'); if (recipient.id === user.id) throw new Error('Invite your partner’s username.');
-      if (data.memberships.some(m => m.cookbookId === match[1] && m.userId === recipient.id)) throw new Error('An invitation or membership already exists.');
+      // The real database allows one partner (or pending invitation) per cookbook; the preview follows the same rule.
+      if (data.memberships.some(m => m.cookbookId === match[1] && m.role === 'partner')) throw new Error('This cookbook already has a partner or pending invitation.');
       const row = { id: uuid(), cookbookId: match[1], userId: recipient.id, role: 'partner', status: 'invited', cookbookName: book(match[1])?.name }; data.memberships.push(row); result = row;
     } else if ((match = path.match(/^\/invitations\/([^/]+)\/accept$/))) {
       const row = data.memberships.find(m => m.id === match[1] && m.userId === user.id); if (!row) throw new Error('Invitation not found.'); row.status = 'accepted'; result = row;

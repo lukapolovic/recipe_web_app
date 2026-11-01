@@ -39,7 +39,11 @@ export function parseIngredient(raw) {
     if (unitMatch && unitNames[unitMatch[1].toLowerCase()]) {
       unit = unitNames[unitMatch[1].toLowerCase()];
       text = text.slice(unitMatch[0].length).replace(/^of\s+/i, '').trim();
-    } else if (/^(?:(?:small|medium|large)\s+)?(?:cans?|packages?|packets?|bunch(?:es)?|handfuls?|scoops?|jars?|bottles?|slices?|cloves?)\b/i.test(text) || /^\(/.test(text)) {
+    } else if (/^(?:slices?|cloves?|bunch(?:es)?|handfuls?|scoops?)\s+(?:of\s+)?\S/i.test(text)) {
+      // A count of something: keep the number as pieces and the counting word as a note ("2 cloves garlic" -> 2 garlic, cloves).
+      const counted = text.match(/^(\S+)\s+(?:of\s+)?(.+)$/i);
+      note = counted[1].toLowerCase(); text = counted[2];
+    } else if (/^(?:(?:small|medium|large)\s+)?(?:cans?|packages?|packets?|jars?|bottles?)\b/i.test(text) || /^\(/.test(text)) {
       // A package, clove, scoop, or parenthesized size is not a known weight.
       // Preserve the source line and require a human to choose its quantity/unit.
       quantity = null;
@@ -47,7 +51,7 @@ export function parseIngredient(raw) {
     }
     name = quantity == null ? original : text;
     if (quantity != null && name.includes(',')) {
-      const comma = name.indexOf(','); note = name.slice(comma + 1).trim(); name = name.slice(0, comma).trim();
+      const comma = name.indexOf(','); note = [note, name.slice(comma + 1).trim()].filter(Boolean).join(', '); name = name.slice(0, comma).trim();
     }
   } else warnings.push(`“${original}”: enter its quantity and unit.`);
   if (!name || name.length > 120 || quantity != null && (!Number.isFinite(quantity) || quantity <= 0 || quantity > 1000000)) {
