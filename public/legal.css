@@ -29,7 +29,7 @@ a:focus-visible { outline: 2.5px solid var(--indigo); outline-offset: 3px; borde
 
 .legal-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; max-width: 920px; margin: 0 auto; padding: 28px 24px 0; }
 .legal-brand { font: 400 34px/1 var(--script); text-decoration: none; display: inline-flex; align-items: center; gap: 10px; }
-.legal-brand img { width: 34px; height: 34px; }
+.legal-brand img { width: auto; height: 52px; }
 .legal-top nav { display: flex; gap: 22px; font: 800 12px/1 var(--label); letter-spacing: .08em; text-transform: uppercase; }
 .legal-top nav a { text-decoration-color: transparent; }
 .legal-top nav a:hover, .legal-top nav a[aria-current] { text-decoration-color: var(--orange); }

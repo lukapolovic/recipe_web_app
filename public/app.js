@@ -66,8 +66,8 @@ const TONES = { rose: 'blush', olive: 'sage', ochre: 'gold', terracotta: 'orange
 const toneOf = color => TONES[color] || 'sage';
 const PERSON_TONES = ['sage', 'gold', 'blush', 'sky', 'sand'];
 const toneFor = id => { let hash = 0; for (const c of String(id ?? '')) hash = (hash * 31 + c.charCodeAt(0)) >>> 0; return PERSON_TONES[hash % PERSON_TONES.length]; };
-// Text wordmark (the favicon mark plus the name in the script face) until assets/brand/logo.svg arrives.
-const logo = (onDark = false) => `<span class="logo logo-text${onDark ? ' on-dark' : ''}">${onDark ? '' : '<img src="/favicon.svg" alt="" width="34" height="34">'}<span>${esc(APP_NAME)}</span></span>`;
+// The hand-drawn leaf and wordmark (assets/brand/logo.webp, transparent; logo-white.webp for the indigo footer). The picture carries the alt.
+const logo = (onDark = false) => `<img class="logo logo-img${onDark ? ' on-dark' : ''}" src="/assets/brand/logo${onDark ? '-white' : ''}.webp" alt="${esc(APP_NAME)}" width="1200" height="317">`;
 // Section headings: an optional handwritten kicker, condensed caps, an optional handwritten tagline.
 function heading(title, { kicker = '', tagline = '', cls = '' } = {}) { return `<div class="heading${cls ? ` ${cls}` : ''}">${kicker ? `<p class="kicker">${kicker}</p>` : ''}<h2>${title}</h2>${tagline ? `<p class="tagline">${tagline}</p>` : ''}</div>`; }
 function pageHero({ kicker = '', title, lede = '', actions = '', extra = '', tone = 'sage', slots = '', cls = '' }) {
