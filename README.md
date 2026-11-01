@@ -42,6 +42,7 @@ a deploy.
 | Path | What it is |
 | --- | --- |
 | `public/` | The browser app: HTML, CSS, JavaScript, fonts and demo assets |
+| `docs/DESIGN.md` | The Kitchen garden visual style: reference analysis, tokens, components, motion |
 | `server.js` | HTTP server: static files, recipe import, photos and the `/api` routes |
 | `Dockerfile` | Production image: runs the tests, then serves `server.js` on Node 24 |
 | `social-api.js` | Supabase adapter: auth, cookbooks, recipes, reviews, friends, photos |

@@ -26,7 +26,7 @@ export const demoData = {
       id: 'demo-lemon-chicken', cookbookId: 'demo-our-kitchen', title: 'Lemon & thyme chicken',
       description: 'Our favorite one-pan supper. Golden chicken, soft potatoes, and enough lemony pan juices for a piece of bread.',
       category: 'Dinner', meatType: 'Chicken', tags: ['One pan', 'Comfort food', 'Date night'], servings: 2, minutes: 45,
-      imageUrl: '/demo-assets/lemon-chicken.svg', sourceUrl: '', sourceCaloriesPerServing: null,
+      imageUrl: '', sourceUrl: '', sourceCaloriesPerServing: null,
       ingredients: [
         { name: 'chicken thighs', quantity: 4, unit: 'piece', note: 'bone-in, skin-on', kcalPer100g: null, kcalPerUnit: null },
         { name: 'baby potatoes', quantity: 400, unit: 'g', note: 'halved', kcalPer100g: null, kcalPerUnit: null },
@@ -46,7 +46,7 @@ export const demoData = {
       id: 'demo-berry-toast', cookbookId: 'demo-our-kitchen', title: 'Berry & ricotta toast',
       description: 'For slow mornings and breakfast brought back to bed. Creamy ricotta, bright berries, and a drizzle of honey.',
       category: 'Breakfast', meatType: 'Vegetarian', tags: ['Quick & easy', 'Sweet', 'For two'], servings: 2, minutes: 15,
-      imageUrl: '/demo-assets/berry-toast.svg', sourceUrl: '', sourceCaloriesPerServing: null,
+      imageUrl: '', sourceUrl: '', sourceCaloriesPerServing: null,
       ingredients: [
         { name: 'sourdough bread', quantity: 2, unit: 'piece', note: 'thick-cut slices', kcalPer100g: null, kcalPerUnit: null },
         { name: 'ricotta', quantity: 150, unit: 'g', note: '', kcalPer100g: null, kcalPerUnit: null },
@@ -64,7 +64,7 @@ export const demoData = {
       id: 'demo-green-shake', cookbookId: 'demo-our-kitchen', title: 'Our morning green shake',
       description: 'A bright little start to the day, with sweet banana and a handful of greens. Best shared before the first cup of coffee.',
       category: 'Shake', meatType: 'Vegetarian', tags: ['Quick & easy', 'Plant based', 'Fresh'], servings: 2, minutes: 5,
-      imageUrl: '/demo-assets/green-shake.svg', sourceUrl: '', sourceCaloriesPerServing: null,
+      imageUrl: '', sourceUrl: '', sourceCaloriesPerServing: null,
       ingredients: [
         { name: 'banana', quantity: 1, unit: 'piece', note: 'frozen, if you like', kcalPer100g: null, kcalPerUnit: null },
         { name: 'baby spinach', quantity: 60, unit: 'g', note: '', kcalPer100g: null, kcalPerUnit: null },
@@ -81,7 +81,7 @@ export const demoData = {
       id: 'demo-tomato-pasta', cookbookId: 'demo-sunday', title: 'Jammy tomato pasta',
       description: 'A small mountain of pasta, blistered tomatoes, and plenty of basil. The kind of lunch that asks for a long conversation.',
       category: 'Lunch', meatType: 'Vegetarian', tags: ['Pasta', 'Quick & easy', 'Seasonal'], servings: 2, minutes: 25,
-      imageUrl: '/demo-assets/tomato-pasta.svg', sourceUrl: '', sourceCaloriesPerServing: null,
+      imageUrl: '', sourceUrl: '', sourceCaloriesPerServing: null,
       ingredients: [
         { name: 'spaghetti', quantity: 200, unit: 'g', note: '', kcalPer100g: null, kcalPerUnit: null },
         { name: 'cherry tomatoes', quantity: 400, unit: 'g', note: '', kcalPer100g: null, kcalPerUnit: null },
@@ -101,7 +101,7 @@ export const demoData = {
       id: 'demo-mushroom-risotto', cookbookId: 'demo-sunday', title: 'Woodland mushroom risotto',
       description: 'A cozy pot to stand beside while someone else pours the wine. Earthy mushrooms, parmesan, and a little patience.',
       category: 'Dinner', meatType: 'Vegetarian', tags: ['Comfort food', 'Date night', 'One pot'], servings: 2, minutes: 40,
-      imageUrl: '/demo-assets/mushroom-risotto.svg', sourceUrl: '', sourceCaloriesPerServing: null,
+      imageUrl: '', sourceUrl: '', sourceCaloriesPerServing: null,
       ingredients: [
         { name: 'arborio rice', quantity: 170, unit: 'g', note: '', kcalPer100g: null, kcalPerUnit: null },
         { name: 'mixed mushrooms', quantity: 250, unit: 'g', note: 'sliced', kcalPer100g: null, kcalPerUnit: null },
@@ -121,7 +121,7 @@ export const demoData = {
       id: 'demo-roast-salmon', cookbookId: 'demo-golden', title: 'Honey-mustard salmon',
       description: 'Our little golden-hour supper, with flaky salmon and green beans tucked alongside. Lovely with boiled new potatoes.',
       category: 'Dinner', meatType: 'Fish', tags: ['One pan', 'Quick & easy', 'For two'], servings: 2, minutes: 30,
-      imageUrl: '/demo-assets/roast-salmon.svg', sourceUrl: '', sourceCaloriesPerServing: null,
+      imageUrl: '', sourceUrl: '', sourceCaloriesPerServing: null,
       ingredients: [
         { name: 'salmon fillets', quantity: 2, unit: 'piece', note: 'about 150 g each', kcalPer100g: null, kcalPerUnit: null },
         { name: 'green beans', quantity: 250, unit: 'g', note: 'trimmed', kcalPer100g: null, kcalPerUnit: null },
@@ -140,7 +140,7 @@ export const demoData = {
       id: 'demo-pear-crumble', cookbookId: 'demo-home', title: 'Pear & almond crumble',
       description: 'A soft, warm middle and a golden, buttery top. Made for two generous bowls and a scoop of vanilla ice cream.',
       category: 'Snack', meatType: 'Vegetarian', tags: ['Baking', 'Sweet', 'Comfort food'], servings: 2, minutes: 45,
-      imageUrl: '/demo-assets/pear-crumble.svg', sourceUrl: '', sourceCaloriesPerServing: null,
+      imageUrl: '', sourceUrl: '', sourceCaloriesPerServing: null,
       ingredients: [
         { name: 'ripe pears', quantity: 2, unit: 'piece', note: 'peeled and chopped', kcalPer100g: null, kcalPerUnit: null },
         { name: 'plain flour', quantity: 50, unit: 'g', note: '', kcalPer100g: null, kcalPerUnit: null },
@@ -160,7 +160,7 @@ export const demoData = {
       id: 'demo-lentil-soup', cookbookId: 'demo-growing', title: 'Garden lentil soup',
       description: 'A humble bowl of good things: lentils, vegetables, lemon, and parsley. Even better the next day with a hunk of bread.',
       category: 'Lunch', meatType: 'Vegetarian', tags: ['Plant based', 'Make ahead', 'One pot'], servings: 4, minutes: 40,
-      imageUrl: '/demo-assets/lentil-soup.svg', sourceUrl: '', sourceCaloriesPerServing: null,
+      imageUrl: '', sourceUrl: '', sourceCaloriesPerServing: null,
       ingredients: [
         { name: 'green lentils', quantity: 200, unit: 'g', note: 'rinsed', kcalPer100g: null, kcalPerUnit: null },
         { name: 'carrot', quantity: 2, unit: 'piece', note: 'diced', kcalPer100g: null, kcalPerUnit: null },

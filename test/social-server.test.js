@@ -224,6 +224,22 @@ test('static files revalidate with ETags and malformed paths are rejected withou
   });
 });
 
+test('static files answer byte-range requests, as video players need', async () => {
+  const { api } = socialMock();
+  await withServer({ socialApi: api }, async ({ request }) => {
+    const whole = await request('/favicon.svg', { token: false });
+    const bytes = Buffer.from(await whole.arrayBuffer());
+    assert.equal(whole.headers.get('accept-ranges'), 'bytes');
+    const part = await request('/favicon.svg', { token: false, headers: { Range: 'bytes=0-9' } });
+    assert.equal(part.status, 206);
+    assert.equal(part.headers.get('content-range'), `bytes 0-9/${bytes.length}`);
+    assert.deepEqual(Buffer.from(await part.arrayBuffer()), bytes.subarray(0, 10));
+    const tail = await request('/favicon.svg', { token: false, headers: { Range: 'bytes=-5' } });
+    assert.deepEqual(Buffer.from(await tail.arrayBuffer()), bytes.subarray(bytes.length - 5));
+    assert.equal((await request('/favicon.svg', { token: false, headers: { Range: `bytes=${bytes.length}-` } })).status, 416);
+  });
+});
+
 test('the app is unframeable and the retired design pages are gone', async () => {
   const { api, events } = socialMock();
   await withServer({ socialApi: api }, async ({ request }) => {

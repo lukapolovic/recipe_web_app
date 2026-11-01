@@ -13,7 +13,7 @@ import { createSocialApi } from './social-api.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const publicRoot = resolve(root, 'public');
-const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.jpg': 'image/jpeg', '.mp4': 'video/mp4', '.webm': 'video/webm' };
 const MAX_BODY = 256 * 1024;
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 const PHOTO_TYPE = /^image\/(?:jpeg|png|webp)(?:;|$)/i;
@@ -163,10 +163,20 @@ export function createApp({
       try { info = await stat(path); } catch { throw new HttpError(404, 'File not found.'); }
       if (!info.isFile()) throw new HttpError(404, 'File not found.');
       const etag = `W/"${info.size.toString(36)}-${Math.floor(info.mtimeMs).toString(36)}"`;
-      const headers = { 'Content-Type': mime[extname(path)] || 'application/octet-stream', 'Cache-Control': 'no-cache', ETag: etag };
+      const headers = { 'Content-Type': mime[extname(path)] || 'application/octet-stream', 'Cache-Control': 'no-cache', ETag: etag, 'Accept-Ranges': 'bytes' };
       if (request.headers['if-none-match'] === etag) { response.writeHead(304, headers); return response.end(); }
       let file;
       try { file = await readFile(path); } catch { throw new HttpError(404, 'File not found.'); }
+      // Video players (Safari in particular) ask for byte ranges; answer a single "bytes=a-b" range, ignore anything else.
+      const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.range || '');
+      if (range && (range[1] || range[2])) {
+        const start = range[1] ? Number(range[1]) : Math.max(0, file.length - Number(range[2]));
+        const end = range[1] && range[2] ? Math.min(Number(range[2]), file.length - 1) : file.length - 1;
+        if (start > end || start >= file.length) { response.writeHead(416, { ...headers, 'Content-Range': `bytes */${file.length}` }); return response.end(); }
+        const part = file.subarray(start, end + 1);
+        response.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${file.length}`, 'Content-Length': part.length });
+        return response.end(request.method === 'HEAD' ? undefined : part);
+      }
       response.writeHead(200, { ...headers, 'Content-Length': file.length });
       response.end(request.method === 'HEAD' ? undefined : file);
     } catch (error) {
