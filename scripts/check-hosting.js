@@ -20,7 +20,7 @@ if (!/^USER node$/m.test(dockerfile)) throw new Error('The server must not run a
 if (!/^CMD \["node", "server\.js"\]$/m.test(dockerfile)) throw new Error('The image must start server.js.');
 
 for (const file of [
-  '../public/palettes.css', '../public/pop.css', '../public/fonts/unbounded.woff2', '../public/index.html', '../public/brand.js', '../public/app.js', '../public/vendor/morphdom.js', '../public/cookbook-store.js', '../public/social.css', '../public/social-ui.css', '../public/social-demo.js',
+  '../public/app.css', '../public/legal.css', '../public/fonts/londrina-solid-black.woff2', '../public/fonts/big-shoulders-display.woff2', '../public/fonts/caveat-brush.woff2', '../public/fonts/rubik.woff2', '../public/fonts/questrial.woff2', '../public/fonts/outfit.woff2', '../public/index.html', '../public/brand.js', '../public/app.js', '../public/motion.js', '../public/vendor/morphdom.js', '../public/cookbook-store.js', '../public/social-demo.js',
   '../server.js', '../social-api.js', '../recipe-photos.js', '../import-error.js', '../hosting/social-schema.sql', '../hosting/backup-ssh.sh',
 ]) read(file);
 
