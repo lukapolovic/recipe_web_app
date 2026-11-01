@@ -7,7 +7,7 @@ export const demoData = {
   currentUser: { id: 'demo-you', username: 'luka', displayName: 'Luka', initials: 'LK' },
   profiles: [
     { id: 'demo-you', username: 'luka', displayName: 'Luka', initials: 'LK', bio: 'Saving the meals we want to make again. Demo profile.' },
-    { id: 'demo-partner', username: 'your_partner', displayName: 'Your partner', initials: 'YP', bio: 'The other half of this sample kitchen. Demo profile.' },
+    { id: 'demo-partner', username: 'your_partner', displayName: 'Sam', initials: 'S', bio: 'The other half of this sample kitchen. Demo profile.' },
     { id: 'demo-emma', username: 'emma_cooks', displayName: 'Emma', initials: 'EM', bio: 'Slow Sundays, a full table, and always something in the oven. Fictional demo profile.' },
     { id: 'demo-leo', username: 'leoatthetable', displayName: 'Leo', initials: 'LE', bio: 'Official taste tester and enthusiastic pasta maker. Fictional demo profile.' },
     { id: 'demo-nora', username: 'noraspantry', displayName: 'Nora', initials: 'NO', bio: 'Simple seasonal things, made with a little extra love. Fictional demo profile.' },

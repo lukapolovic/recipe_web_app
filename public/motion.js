@@ -14,6 +14,8 @@ const MAGNETIC = '.button.primary, .button.light, .button.outline, .scroll-cue, 
 const TILT = '.recipe-photo, .book-cover';
 const TILT_DEG = 7;
 const PRESSABLE = 'button, a.button';
+// Form and destructive buttons stay still: no drift towards the pointer, no sparks (Delete included).
+const STILL = 'form button, dialog button, .button.danger, .danger-text, .text-button';
 const SPARK_TONES = ['--orange', '--gold', '--indigo', '--sky-deep', '--blush'];
 const NUMBER = /-?\d*\.?\d+/g;
 
@@ -114,6 +116,7 @@ export function startMotion(blobShapes) {
         card.style.transform = `perspective(900px) rotateX(${(-y * TILT_DEG).toFixed(2)}deg) rotateY(${(x * TILT_DEG).toFixed(2)}deg)`;
       }
       const target = event.target.closest?.(MAGNETIC);
+      if (target?.closest(STILL)) { if (current) { current.style.translate = ''; current = null; } return; }
       if (current && current !== target) { current.style.translate = ''; current = null; }
       if (!target) return;
       current = target;
@@ -131,7 +134,7 @@ export function startMotion(blobShapes) {
   // pressed (its centre for the keyboard). Sparks live in a fixed layer, so they outlive a redraw caused by the click.
   document.addEventListener('click', event => {
     const target = event.target.closest?.(PRESSABLE);
-    if (!target || target.disabled || target.getAttribute('aria-disabled') === 'true') return;
+    if (!target || target.disabled || target.getAttribute('aria-disabled') === 'true' || target.closest(STILL)) return;
     target.animate({ scale: [1, 0.9, 1.05, 1] }, { duration: 420, easing: 'cubic-bezier(.3, .7, .4, 1)' });
     const box = target.getBoundingClientRect();
     const keyboard = event.detail === 0 || (!event.clientX && !event.clientY);
