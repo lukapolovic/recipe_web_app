@@ -278,9 +278,9 @@ body.scrolled .site-header { background: color-mix(in srgb, var(--cream) 94%, tr
 body.header-away:not(.menu-open) .site-header { transform: translateY(-105%); box-shadow: none; }
 .main-bar { display: flex; align-items: center; gap: 28px; height: var(--header-h); }
 .brand { display: inline-flex; align-items: center; color: var(--indigo); margin-right: auto; }
-.logo-text { display: inline-flex; align-items: center; gap: 10px; font: 400 36px/1 var(--script); color: var(--indigo); white-space: nowrap; }
-.logo-text img { width: 34px; height: 34px; flex: none; }
-.logo-text.on-dark { color: var(--white); font-size: 44px; }
+.logo-img { display: block; width: auto; height: 60px; }
+.footer-brand .logo-img { height: 84px; }
+.auth-brand .logo-img { height: 92px; margin-left: -6px; }
 .main-nav { display: flex; align-items: center; gap: clamp(18px, 2.8vw, 40px); }
 .nav-link { position: relative; padding: 10px 0; font: 800 12px/1 var(--label); letter-spacing: .07em; text-transform: uppercase; color: var(--indigo); white-space: nowrap; }
 .nav-link::after { content: ''; position: absolute; left: 50%; bottom: -2px; width: 5px; height: 5px; border-radius: 50%; background: var(--orange); transform: translateX(-50%) scale(0); transition: transform .3s var(--ease); }
@@ -903,6 +903,7 @@ body.header-away:not(.menu-open) .site-header { transform: translateY(-105%); bo
   /* A long title (the shopping list) reaches the photo at tablet width. */
   .page-hero-long .food-page-hero { display: none; }
   :root { --header-h: 76px; }
+  .logo-img { height: 50px; }
   .header-cta { display: none; }
   .menu-button { display: grid; }
   .main-nav { position: fixed; inset: 0; z-index: -1; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; padding: 110px var(--gutter) 48px; background: var(--cream); overflow-y: auto;
@@ -961,6 +962,7 @@ body.header-away:not(.menu-open) .site-header { transform: translateY(-105%); bo
   /* Stacked: the art shrinks to a header (logo and one line) so the form is on the first screen. */
   .auth-art { padding: 28px clamp(20px, 6vw, 48px) 56px; }
   .auth-brand { margin-bottom: 14px; }
+  .auth-brand .logo-img { height: 64px; }
   .auth-art :is(.display, .dots, .lede), .auth-leaves, .food-auth-pizza { display: none; }
   .auth-art .tagline { font-size: 30px; }
   .auth-card-wrap { padding-top: 24px; align-items: flex-start; }
