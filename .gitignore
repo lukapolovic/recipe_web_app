@@ -1,6 +1,9 @@
 node_modules/
 data/*.sqlite*
 .env
+# Copies and backups of the env file (.env.save, .env.bak) hold the same secrets.
+.env.*
+!.env.example
 .DS_Store
 coverage/
 recipe_web_app_before_optimization.zip

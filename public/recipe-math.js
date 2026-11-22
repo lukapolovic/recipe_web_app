@@ -18,28 +18,8 @@ export function nutritionFor(recipe, servings = recipe.servings) {
     complete: measurable.length === recipe.ingredients.length, known: measurable.length, count: recipe.ingredients.length, source: 'ingredients' };
 }
 
-export function shoppingList(recipes, cart) {
-  const groups = new Map();
-  for (const entry of cart) {
-    const recipe = recipes.find(r => r.id === entry.recipeId);
-    if (!recipe) continue;
-    for (const ingredient of recipe.ingredients) {
-      const name = ingredient.name.trim().replace(/\s+/g, ' ');
-      const unit = GRAMS_PER_UNIT[ingredient.unit] ? 'g' : ingredient.unit === 'l' ? 'ml' : ingredient.unit;
-      const multiplier = GRAMS_PER_UNIT[ingredient.unit] || (ingredient.unit === 'l' ? 1000 : 1);
-      const key = JSON.stringify([name.toLocaleLowerCase('en'), unit]);
-      let row = groups.get(key);
-      if (!row) {
-        row = { key, name, unit, quantity: 0, notes: new Set(), recipes: new Set() };
-        groups.set(key, row);
-      }
-      row.quantity += ingredient.quantity * multiplier * entry.servings / recipe.servings;
-      if (ingredient.note) row.notes.add(ingredient.note);
-      row.recipes.add(recipe.title);
-    }
-  }
-  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name)).map(row => ({ ...row, notes: [...row.notes], recipes: [...row.recipes] }));
-}
+// The shopping list adds ingredients up across recipes; see shopping-list.js.
+export { shoppingList, checkKey } from './shopping-list.js';
 
 export function displayAmount(quantity, unit) {
   if (unit === 'g' && quantity >= 1000) return `${formatQuantity(quantity / 1000)} kg`;
@@ -47,5 +27,5 @@ export function displayAmount(quantity, unit) {
   return `${formatQuantity(quantity)} ${unit === 'piece' ? (quantity === 1 ? 'piece' : 'pieces') : unit}`;
 }
 
-// Identifies a shopping-list row (and its amount) for ticked-off checkboxes.
-export const checkKey = row => `${row.key}|${row.quantity}`;
+// A shopping-list row's amount as a shopper reads it (rounded; "to serve" for garnishes).
+export const amountLabel = row => row.amount ?? displayAmount(row.quantity, row.unit);
