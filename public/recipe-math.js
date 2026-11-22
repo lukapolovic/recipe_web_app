@@ -1,5 +1,7 @@
 import { GRAMS_PER_UNIT } from './recipe-config.js';
 export { UNITS } from './recipe-config.js';
+import { convertAmount } from './units.js';
+export { SYSTEMS } from './units.js';
 
 // Constructing Intl formatters is costly; every ingredient row reuses this one.
 const quantityFormat = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
@@ -21,7 +23,11 @@ export function nutritionFor(recipe, servings = recipe.servings) {
 // The shopping list adds ingredients up across recipes; see shopping-list.js.
 export { shoppingList, checkKey } from './shopping-list.js';
 
-export function displayAmount(quantity, unit) {
+// With a system ('metric' or 'imperial') an ingredient in the other system is converted and rounded;
+// one already in it, or with no other form (pieces, a pinch), reads as written.
+export function displayAmount(quantity, unit, system) {
+  const converted = system && convertAmount(quantity, unit, system);
+  if (converted) return converted;
   if (unit === 'g' && quantity >= 1000) return `${formatQuantity(quantity / 1000)} kg`;
   if (unit === 'ml' && quantity >= 1000) return `${formatQuantity(quantity / 1000)} l`;
   return `${formatQuantity(quantity)} ${unit === 'piece' ? (quantity === 1 ? 'piece' : 'pieces') : unit}`;

@@ -193,6 +193,12 @@ img.empty-art { position: relative; }
 .button.outline.small { padding-left: 44px; }
 .button.outline.small .icon { width: 30px; height: 30px; padding: 7px; }
 .button.full { width: 100%; }
+/* Metric / imperial: one pill button holding both words. The chosen half is filled, and the fill slides across on a press. */
+.button.unit-switch { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 3px; max-width: 100%; isolation: isolate; }
+.unit-switch > span { padding: 12px clamp(12px, 4vw, 22px); text-align: center; transition: color .3s var(--ease); }
+.unit-switch > .on { color: var(--white); }
+.unit-switch::before { content: ''; position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: var(--pill); background: var(--indigo); transition: transform .45s var(--ease); }
+.unit-switch[data-system="imperial"]::before { transform: translateX(100%); }
 .text-button, .link-button { display: inline-flex; align-items: center; gap: 6px; color: var(--indigo); font: 600 15px/1.4 var(--sans); text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 4px; text-decoration-color: var(--orange); transition: color .3s var(--ease), text-decoration-color .3s var(--ease); }
 .text-button:hover, .link-button:hover { text-decoration-color: var(--indigo); }
 .text-button .icon { width: 16px; height: 16px; }
@@ -614,6 +620,8 @@ body.header-away:not(.menu-open) .site-header { transform: translateY(-105%); bo
 .recipe-main { padding: var(--section-sm) 0 var(--section); }
 .recipe-columns { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .85fr); gap: clamp(40px, 6vw, 96px); align-items: start; }
 .steps-column .heading, .ingredients-panel .heading { margin-bottom: 30px; }
+.ingredients-panel .heading { margin-bottom: 22px; }
+.panel-tools { display: flex; margin-bottom: 14px; }
 .instructions-list { display: grid; gap: 40px; counter-reset: step; }
 .instructions-list li { display: grid; gap: 8px; }
 .step-label { display: inline-flex; align-items: center; gap: 14px; font: 700 12.5px/1 var(--label); letter-spacing: .18em; text-transform: uppercase; color: var(--orange-ink); }
@@ -719,6 +727,7 @@ body.header-away:not(.menu-open) .site-header { transform: translateY(-105%); bo
 .shopping-paper::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--cream); clip-path: url(#cut-a); }
 .shopping-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
 .shopping-head .heading { margin: 0; }
+.shopping-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .shopping-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 15px 0; border-bottom: 1.5px solid var(--line); cursor: pointer; }
 .shopping-row > span { font-size: 15.5px; line-height: 1.45; letter-spacing: .02em; }
 .shopping-row small { display: block; margin-top: 2px; color: var(--muted); }
@@ -1041,11 +1050,14 @@ body.header-away:not(.menu-open) .site-header { transform: translateY(-105%); bo
   .page-hero-art { display: none; }
   .review-form, .reviews-layout > .notice { padding: 24px 20px; }
   .toast { bottom: 18px; }
+  /* The shopping list's buttons share the full width of the paper. */
+  .shopping-tools { width: 100%; }
+  .shopping-tools > .button { flex: 1 1 auto; }
 }
 
 /* ---------- Print: the recipe and the shopping list on paper ---------- */
 @media print {
-  .utility-bar, .site-header, .site-footer, .breadcrumb, .paper-actions, .reviews-section, .meal-plan, .planner-select, .toast, .blob, .slot, .wave, .page-wave, .filter-band { display: none !important; }
+  .utility-bar, .site-header, .site-footer, .breadcrumb, .paper-actions, .reviews-section, .meal-plan, .planner-select, .toast, .blob, .slot, .wave, .page-wave, .filter-band, .unit-switch { display: none !important; }
   body { background: #fff; }
   .recipe-hero, .page-hero, .recipe-main, .page-content { padding: 0 0 16px; }
   .ingredients-panel { position: static; }
