@@ -251,7 +251,11 @@ over text, mostly still.
   active, indigo CTA). Below 1100 px the nav becomes a full-screen cream menu opened by an indigo
   "MENU" disc.
 * **Buttons**: `.primary` (indigo pill), `.outline` (orange border, arrow disc), `.light`
-  (white pill for coloured bands), default (indigo outline), `.subtle`, `.danger`.
+  (white pill for coloured bands), default (indigo outline), `.subtle`, `.danger`, `.unit-switch`
+  (one indigo-outline pill holding "Metric | Imperial": the chosen half is filled and the fill slides across on a
+  press; it sits in the shopping list's head beside "Save list" and above the ingredients on a recipe page, where it
+  takes the full width on phones; the choice is shared by both pages and kept on the device). It is a plain
+  `<button>`, so it gets the same press squish and spark burst as every other button.
 * **Recipe card**: hand-cut photo (zooms to 1.1 and tilts towards the pointer on hover); on the
   photo only a white leaf disc top-left for meat-free recipes (`dietIcon()`) and the handwritten
   time pill top-right; caps title below (plus "from <cookbook>" in search results). No category,

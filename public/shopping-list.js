@@ -1,4 +1,5 @@
 import { GRAMS_PER_UNIT } from './recipe-config.js';
+import { ML, weightIn, volumeIn } from './units.js';
 
 // The shopping list: every ingredient of every planned recipe, scaled to the
 // planned servings and added up into one row per thing you would actually buy.
@@ -8,24 +9,20 @@ import { GRAMS_PER_UNIT } from './recipe-config.js';
 // each convert between their units. Weight and volume are not mixed, because
 // that needs a density for every ingredient.
 //
+// The list is read in metric or imperial (units.js): every weight and volume is
+// added up in grams and millilitres, then written in the chosen system.
+//
 // A row's `quantity` and `unit` are exact. Its `amount` is the same figure
 // rounded the way a shopper reads it ("1 lb" -> "455 g", half a lemon -> "1 piece").
 
 // --- Units ---------------------------------------------------------------
 
-const ML = { ml: 1, l: 1000, tsp: 4.92892159375, tbsp: 14.78676478125, cup: 236.5882365, pinch: 4.92892159375 / 16 };
-// When volumes in different units meet, show the most "shop-like" one: metric, then cups, then spoons.
-const VOLUME_STYLE = { ml: 'ml', l: 'ml', cup: 'cup', tsp: 'spoon', tbsp: 'spoon', pinch: 'spoon' };
-const STYLE_RANK = { spoon: 0, cup: 1, ml: 2 };
 const CONTAINERS = ['tin', 'can', 'jar', 'bottle', 'packet', 'package', 'pint', 'bag', 'box', 'head', 'bunch'];
-const QUARTERS = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
-
-const numberFormat = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
 
 function measure(ingredient, factor, container) {
   const quantity = ingredient.quantity * factor, unit = ingredient.unit;
   if (GRAMS_PER_UNIT[unit]) return { family: 'weight', unitKey: 'g', base: quantity * GRAMS_PER_UNIT[unit] };
-  if (ML[unit]) return { family: 'volume', unitKey: 'ml', base: quantity * ML[unit], style: VOLUME_STYLE[unit] };
+  if (ML[unit]) return { family: 'volume', unitKey: 'ml', base: quantity * ML[unit] };
   // "pint fresh strawberries, 0.5 piece" means half a pint, not half a strawberry.
   const label = container && unit === 'piece' ? container : unit;
   return { family: 'count', unitKey: label, base: quantity, label };
@@ -126,42 +123,33 @@ function parse(ingredient, factor, recipe) {
 
 // --- Rows ----------------------------------------------------------------
 
-const roundTo = (value, step) => Math.round(value / step) * step;
-function metric(value, small, big) {
-  const rounded = value >= 1000 ? roundTo(value, 10) : value >= 50 ? roundTo(value, 5) : Math.max(1, Math.round(value));
-  return rounded >= 1000 ? `${numberFormat.format(rounded / 1000)} ${big}` : `${rounded} ${small}`;
-}
-function quarters(value) {
-  const rounded = Math.max(0.25, roundTo(value, 0.25)), whole = Math.floor(rounded);
-  return `${whole || ''}${QUARTERS[rounded - whole] ?? ''}`;
-}
 const plural = (count, unit) => count === 1 || !['piece', ...CONTAINERS].includes(unit) ? unit : unit === 'bunch' ? 'bunches' : `${unit}s`;
 
-function finish(group) {
-  const { family, base } = group;
-  let unit, quantity, amount;
-  if (family === 'weight') { unit = 'g'; quantity = base; amount = metric(base, 'g', 'kg'); }
-  else if (family === 'volume' && group.style === 'ml') { unit = 'ml'; quantity = base; amount = metric(base, 'ml', 'l'); }
-  else if (family === 'volume' && group.style === 'cup') { unit = 'cup'; quantity = base / ML.cup; amount = `${quarters(quantity)} cup`; }
-  else if (family === 'volume') {
-    const tsp = base / ML.tsp;
-    if (tsp < 0.25) { unit = 'pinch'; quantity = base / ML.pinch; amount = 'a pinch'; }
-    else if (roundTo(tsp, 0.25) >= 3) { unit = 'tbsp'; quantity = base / ML.tbsp; amount = `${quarters(quantity)} tbsp`; }
-    else { unit = 'tsp'; quantity = tsp; amount = `${quarters(quantity)} tsp`; }
-  } else {
-    unit = group.label; quantity = base;
-    const whole = Math.max(1, Math.ceil(base - 1e-9));
-    amount = `${whole} ${plural(whole, unit)}`;
+// One row's figure read in one system: the unit, the exact quantity in it, and the rounded amount.
+function describe(group, system) {
+  let shown;
+  if (group.family === 'weight') shown = weightIn(group.base, system);
+  else if (group.family === 'volume') shown = volumeIn(group.base, system);
+  else {
+    const whole = Math.max(1, Math.ceil(group.base - 1e-9));
+    shown = { unit: group.label, quantity: group.base, amount: `${whole} ${plural(whole, group.label)}` };
   }
-  if (group.garnish) amount = group.garnish;
+  return group.garnish ? { ...shown, amount: group.garnish } : shown;
+}
+
+function finish(group, system) {
+  const { unit, quantity, amount } = describe(group, system);
+  // A tick belongs to the row, not to the units it is read in, so it survives a switch of system and the
+  // couple who share a list can each read it their own way. It is lost when either reading changes.
+  const tick = [describe(group, 'metric').amount, describe(group, 'imperial').amount].join('|');
   const notes = [...group.notes.values()];
   if (!group.required) notes.push('optional');
   // The most common spelling wins; the first one seen breaks ties.
   const name = [...group.names].reduce((best, entry) => entry[1] > best[1] ? entry : best)[0];
-  return { key: group.key, name, unit, quantity, amount, notes, recipes: [...group.recipes] };
+  return { key: group.key, name, unit, quantity, amount, tick, notes, recipes: [...group.recipes] };
 }
 
-export function shoppingList(recipes, cart) {
+export function shoppingList(recipes, cart, system = 'metric') {
   const lines = [];
   for (const entry of cart) {
     const recipe = recipes.find(r => r.id === entry.recipeId);
@@ -183,20 +171,19 @@ export function shoppingList(recipes, cart) {
     const key = JSON.stringify([line.key, line.unitKey]);
     let group = groups.get(key);
     if (!group) {
-      group = { key, family: line.family, label: line.label, style: line.style, base: 0, names: new Map(), notes: new Map(), recipes: new Set(), required: false, garnish: line.garnish };
+      group = { key, family: line.family, label: line.label, base: 0, names: new Map(), notes: new Map(), recipes: new Set(), required: false, garnish: line.garnish };
       groups.set(key, group);
     }
     group.base += line.base;
-    if (line.style && STYLE_RANK[line.style] > STYLE_RANK[group.style]) group.style = line.style;
     group.names.set(line.display, (group.names.get(line.display) ?? 0) + 1);
     for (const note of line.notes) if (!group.notes.has(note.toLocaleLowerCase('en'))) group.notes.set(note.toLocaleLowerCase('en'), note);
     group.recipes.add(line.recipe);
     if (!line.optional) group.required = true;
     if (!line.garnish) group.garnish = '';
   }
-  return [...groups.values()].map(finish).sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
+  return [...groups.values()].map(group => finish(group, system)).sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
 }
 
 // Identifies a shopping-list row (and its amount) for ticked-off checkboxes.
-// Built from the amount as shown, so a servings change that leaves it the same keeps the tick.
-export const checkKey = row => `${row.key}|${row.amount}`;
+// Built from the amounts as shown (in both systems), so a servings change that leaves them the same keeps the tick.
+export const checkKey = row => `${row.key}|${row.tick}`;

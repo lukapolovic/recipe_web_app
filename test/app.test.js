@@ -16,10 +16,11 @@ test('shopping list scales servings, merges compatible units, preserves other un
     { ...fixture(), id: 1, ingredients: [{ name: ' Rice ', quantity: 200, unit: 'g', note: 'dry' }, { name: 'Milk', quantity: 250, unit: 'ml' }, { name: 'Rice', quantity: 1, unit: 'cup' }] },
     { ...fixture(), id: 2, title: 'Second rice', servings: 4, ingredients: [{ name: 'rice', quantity: 1, unit: 'kg', note: 'dry' }, { name: 'Milk', quantity: 1, unit: 'l' }] }
   ];
-  const rows = shoppingList(recipes, [{ recipeId: 1, servings: 4 }, { recipeId: 2, servings: 2 }, { recipeId: 999, servings: 1 }]);
+  const cart = [{ recipeId: 1, servings: 4 }, { recipeId: 2, servings: 2 }, { recipeId: 999, servings: 1 }];
+  const rows = shoppingList(recipes, cart);
   assert.equal(rows.find(r => r.name === 'Rice' && r.unit === 'g').quantity, 900);
   assert.equal(rows.find(r => r.name === 'Milk').quantity, 1000);
-  assert.equal(rows.find(r => r.unit === 'cup').quantity, 2);
+  assert.equal(shoppingList(recipes, cart, 'imperial').find(r => r.name === 'Rice' && r.unit === 'cup').quantity, 2, 'two cups of rice, read in cups');
   assert.deepEqual(rows.find(r => r.unit === 'g').notes, ['dry']);
   assert.equal(rows.find(r => r.unit === 'g').recipes.length, 2);
 });
