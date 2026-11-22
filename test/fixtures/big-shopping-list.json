@@ -1,0 +1,626 @@
+{
+ "id": "big-list",
+ "title": "Big shopping list",
+ "servings": 1,
+ "ingredients": [
+  {
+   "name": "almond milk",
+   "quantity": 2.5,
+   "unit": "cup"
+  },
+  {
+   "name": "asparagus",
+   "quantity": 453.59,
+   "unit": "g"
+  },
+  {
+   "name": "avocados",
+   "quantity": 2,
+   "unit": "piece",
+   "note": "pitted, peeled, and thinly sliced"
+  },
+  {
+   "name": "baby new potatoes",
+   "quantity": 250,
+   "unit": "g"
+  },
+  {
+   "name": "baby spinach",
+   "quantity": 0.25,
+   "unit": "cup",
+   "note": "large handfull"
+  },
+  {
+   "name": "basil leaves, to serve",
+   "quantity": 0.5,
+   "unit": "piece"
+  },
+  {
+   "name": "bay leaves",
+   "quantity": 1,
+   "unit": "piece"
+  },
+  {
+   "name": "beef broth",
+   "quantity": 2,
+   "unit": "cup"
+  },
+  {
+   "name": "beef stock",
+   "quantity": 300,
+   "unit": "ml"
+  },
+  {
+   "name": "black pepper",
+   "quantity": 0.5,
+   "unit": "tsp"
+  },
+  {
+   "name": "black pepper0.25tsp",
+   "quantity": 0.25,
+   "unit": "tsp"
+  },
+  {
+   "name": "blueberries",
+   "quantity": 0.25,
+   "unit": "cup"
+  },
+  {
+   "name": "boneless skinless chicken breasts",
+   "quantity": 510.29,
+   "unit": "g"
+  },
+  {
+   "name": "broccoli",
+   "quantity": 1,
+   "unit": "piece"
+  },
+  {
+   "name": "buckwheat groats",
+   "quantity": 1,
+   "unit": "cup"
+  },
+  {
+   "name": "butter",
+   "quantity": 2,
+   "unit": "tbsp"
+  },
+  {
+   "name": "Butter",
+   "quantity": 1,
+   "unit": "tsp"
+  },
+  {
+   "name": "carrot",
+   "quantity": 1,
+   "unit": "piece"
+  },
+  {
+   "name": "celery",
+   "quantity": 0.5,
+   "unit": "cup"
+  },
+  {
+   "name": "celery sticks",
+   "quantity": 0.5,
+   "unit": "piece",
+   "note": "finely chopped"
+  },
+  {
+   "name": "Cheese",
+   "quantity": 1,
+   "unit": "piece"
+  },
+  {
+   "name": "cherry tomatoes",
+   "quantity": 575,
+   "unit": "g",
+   "note": "halved"
+  },
+  {
+   "name": "chia seeds",
+   "quantity": 4,
+   "unit": "tbsp"
+  },
+  {
+   "name": "chia seeds (optional)",
+   "quantity": 1,
+   "unit": "tsp"
+  },
+  {
+   "name": "chicken breast",
+   "quantity": 450,
+   "unit": "g"
+  },
+  {
+   "name": "chickpeas",
+   "quantity": 425.24,
+   "unit": "g"
+  },
+  {
+   "name": "chopped dill",
+   "quantity": 1,
+   "unit": "tsp"
+  },
+  {
+   "name": "chopped tomatoes",
+   "quantity": 400,
+   "unit": "g"
+  },
+  {
+   "name": "cinnamon",
+   "quantity": 1.25,
+   "unit": "tsp",
+   "note": "if desired)"
+  },
+  {
+   "name": "cooked rice",
+   "quantity": 1.5,
+   "unit": "cup"
+  },
+  {
+   "name": "cucumber",
+   "quantity": 13,
+   "unit": "piece",
+   "note": "halved lengthwise and cut into 1/4-inch slices"
+  },
+  {
+   "name": "Dijon mustard",
+   "quantity": 2,
+   "unit": "tbsp"
+  },
+  {
+   "name": "dried cranberries",
+   "quantity": 2,
+   "unit": "tbsp"
+  },
+  {
+   "name": "dried rosemary",
+   "quantity": 1,
+   "unit": "tsp"
+  },
+  {
+   "name": "dried thyme",
+   "quantity": 1,
+   "unit": "tsp"
+  },
+  {
+   "name": "eggs",
+   "quantity": 6,
+   "unit": "piece"
+  },
+  {
+   "name": "everything bagel seasoning",
+   "quantity": 1.5,
+   "unit": "tbsp"
+  },
+  {
+   "name": "feta cheese",
+   "quantity": 0.25,
+   "unit": "cup"
+  },
+  {
+   "name": "fresh dill",
+   "quantity": 1,
+   "unit": "tsp"
+  },
+  {
+   "name": "freshly squeezed lemon juice",
+   "quantity": 1,
+   "unit": "tsp"
+  },
+  {
+   "name": "frozen mixed vegetables",
+   "quantity": 300,
+   "unit": "g"
+  },
+  {
+   "name": "garlic",
+   "quantity": 2,
+   "unit": "tsp",
+   "note": "minced"
+  },
+  {
+   "name": "garlic",
+   "quantity": 6,
+   "unit": "piece",
+   "note": "cloves, minced · cloves"
+  },
+  {
+   "name": "garlic cloves",
+   "quantity": 1,
+   "unit": "piece",
+   "note": "peeled and finely chopped"
+  },
+  {
+   "name": "ginger",
+   "quantity": 2,
+   "unit": "tsp",
+   "note": "minced"
+  },
+  {
+   "name": "Greek yogurt",
+   "quantity": 1.17,
+   "unit": "cup"
+  },
+  {
+   "name": "Greek yogurt",
+   "quantity": 130,
+   "unit": "g"
+  },
+  {
+   "name": "green onion",
+   "quantity": 1,
+   "unit": "piece"
+  },
+  {
+   "name": "green onions",
+   "quantity": 2,
+   "unit": "piece"
+  },
+  {
+   "name": "hake",
+   "quantity": 2,
+   "unit": "piece",
+   "note": "skinless chunky pieces"
+  },
+  {
+   "name": "halved red grapes",
+   "quantity": 1,
+   "unit": "cup"
+  },
+  {
+   "name": "homemade chicken seasoning",
+   "quantity": 1.5,
+   "unit": "tbsp"
+  },
+  {
+   "name": "honey or maple syrup",
+   "quantity": 2,
+   "unit": "tbsp"
+  },
+  {
+   "name": "large banana",
+   "quantity": 0.5,
+   "unit": "piece"
+  },
+  {
+   "name": "large carrot",
+   "quantity": 0.5,
+   "unit": "piece",
+   "note": "grated"
+  },
+  {
+   "name": "large whole-grain tortillas",
+   "quantity": 4,
+   "unit": "piece"
+  },
+  {
+   "name": "lemon",
+   "quantity": 2.5,
+   "unit": "piece",
+   "note": "zested and halved · thinly sliced · freshly squeezed"
+  },
+  {
+   "name": "lemon juice",
+   "quantity": 2,
+   "unit": "tbsp"
+  },
+  {
+   "name": "lettuce",
+   "quantity": 2,
+   "unit": "piece"
+  },
+  {
+   "name": "light cream cheese",
+   "quantity": 127.57,
+   "unit": "g"
+  },
+  {
+   "name": "light olive oil",
+   "quantity": 0.5,
+   "unit": "tsp"
+  },
+  {
+   "name": "liquid egg whites",
+   "quantity": 1,
+   "unit": "cup"
+  },
+  {
+   "name": "maple syrup",
+   "quantity": 1,
+   "unit": "tbsp"
+  },
+  {
+   "name": "maple syrup (optional)",
+   "quantity": 1,
+   "unit": "tsp"
+  },
+  {
+   "name": "mayonnaise",
+   "quantity": 0.25,
+   "unit": "cup"
+  },
+  {
+   "name": "medium onion",
+   "quantity": 0.5,
+   "unit": "piece",
+   "note": "finely chopped"
+  },
+  {
+   "name": "medium zucchini",
+   "quantity": 0.5,
+   "unit": "piece",
+   "note": "finely diced"
+  },
+  {
+   "name": "milk",
+   "quantity": 1.5,
+   "unit": "cup"
+  },
+  {
+   "name": "Milk",
+   "quantity": 1,
+   "unit": "tbsp"
+  },
+  {
+   "name": "nonfat greek yogurt",
+   "quantity": 0.25,
+   "unit": "cup"
+  },
+  {
+   "name": "old fashioned oats",
+   "quantity": 1,
+   "unit": "cup"
+  },
+  {
+   "name": "old fashioned rolled oats",
+   "quantity": 0.5,
+   "unit": "cup"
+  },
+  {
+   "name": "olive oil",
+   "quantity": 9.25,
+   "unit": "tbsp"
+  },
+  {
+   "name": "onion",
+   "quantity": 0.5,
+   "unit": "piece"
+  },
+  {
+   "name": "oregano",
+   "quantity": 0.5,
+   "unit": "tsp"
+  },
+  {
+   "name": "Parmesan shavings, to serve",
+   "quantity": 0.5,
+   "unit": "pinch"
+  },
+  {
+   "name": "parsley",
+   "quantity": 0.5,
+   "unit": "pinch"
+  },
+  {
+   "name": "parsley",
+   "quantity": 0.25,
+   "unit": "cup"
+  },
+  {
+   "name": "peanut butter",
+   "quantity": 2,
+   "unit": "tbsp"
+  },
+  {
+   "name": "pecans",
+   "quantity": 2,
+   "unit": "tbsp"
+  },
+  {
+   "name": "pint fresh strawberries",
+   "quantity": 0.5,
+   "unit": "piece",
+   "note": "sliced"
+  },
+  {
+   "name": "plain Greek yogurt",
+   "quantity": 2,
+   "unit": "tbsp"
+  },
+  {
+   "name": "pork tenderloin",
+   "quantity": 680.39,
+   "unit": "g"
+  },
+  {
+   "name": "red bell pepper",
+   "quantity": 1,
+   "unit": "piece",
+   "note": "cored and cut into 1/4 inch strips"
+  },
+  {
+   "name": "red onion",
+   "quantity": 1.5,
+   "unit": "piece",
+   "note": "cut into slim wedges · thinly sliced"
+  },
+  {
+   "name": "red onion",
+   "quantity": 0.5,
+   "unit": "cup"
+  },
+  {
+   "name": "red wine (optional)",
+   "quantity": 75,
+   "unit": "ml"
+  },
+  {
+   "name": "red wine vinegar",
+   "quantity": 0.5,
+   "unit": "tsp"
+  },
+  {
+   "name": "rice vinegar",
+   "quantity": 1,
+   "unit": "tbsp"
+  },
+  {
+   "name": "rikula",
+   "quantity": 3,
+   "unit": "cup"
+  },
+  {
+   "name": "rolled oats",
+   "quantity": 1,
+   "unit": "cup"
+  },
+  {
+   "name": "salmon",
+   "quantity": 603.28,
+   "unit": "g"
+  },
+  {
+   "name": "salmon fillets",
+   "quantity": 520,
+   "unit": "g"
+  },
+  {
+   "name": "salt",
+   "quantity": 1.5,
+   "unit": "tsp"
+  },
+  {
+   "name": "salt",
+   "quantity": 1.5,
+   "unit": "pinch"
+  },
+  {
+   "name": "salt & pepper",
+   "quantity": 1,
+   "unit": "pinch"
+  },
+  {
+   "name": "Salt and pepper",
+   "quantity": 1,
+   "unit": "pinch"
+  },
+  {
+   "name": "Salt and pepper",
+   "quantity": 0.25,
+   "unit": "tsp"
+  },
+  {
+   "name": "sesame oil",
+   "quantity": 1,
+   "unit": "tsp"
+  },
+  {
+   "name": "sesame seeds",
+   "quantity": 1,
+   "unit": "pinch"
+  },
+  {
+   "name": "soy sauce",
+   "quantity": 2,
+   "unit": "tbsp"
+  },
+  {
+   "name": "spring onions",
+   "quantity": 4,
+   "unit": "piece",
+   "note": "trimmed and finely sliced"
+  },
+  {
+   "name": "steak",
+   "quantity": 453.59,
+   "unit": "g",
+   "note": "sirloin"
+  },
+  {
+   "name": "steamed green beans",
+   "quantity": 1.5,
+   "unit": "cup"
+  },
+  {
+   "name": "sweet potatoes",
+   "quantity": 453.59,
+   "unit": "g"
+  },
+  {
+   "name": "sweet potatoes",
+   "quantity": 2,
+   "unit": "piece"
+  },
+  {
+   "name": "tin chopped tomatoes",
+   "quantity": 200,
+   "unit": "g"
+  },
+  {
+   "name": "tomato",
+   "quantity": 12,
+   "unit": "piece"
+  },
+  {
+   "name": "tuna",
+   "quantity": 340.19,
+   "unit": "g"
+  },
+  {
+   "name": "turkey breast",
+   "quantity": 1.5,
+   "unit": "cup",
+   "note": "cubed cooked"
+  },
+  {
+   "name": "turkey mince",
+   "quantity": 200,
+   "unit": "g"
+  },
+  {
+   "name": "vanilla extract",
+   "quantity": 0.5,
+   "unit": "tsp"
+  },
+  {
+   "name": "vegetable stock pot",
+   "quantity": 400,
+   "unit": "ml"
+  },
+  {
+   "name": "Vegetables",
+   "quantity": 0.5,
+   "unit": "cup",
+   "note": "bell pepper, onion, psinach, broccoli. etc"
+  },
+  {
+   "name": "whole grain bread",
+   "quantity": 5,
+   "unit": "piece",
+   "note": "slices, toasted"
+  },
+  {
+   "name": "whole wheat tortillas",
+   "quantity": 4,
+   "unit": "piece"
+  },
+  {
+   "name": "wholegrain rice",
+   "quantity": 250,
+   "unit": "g"
+  },
+  {
+   "name": "wholewheat spaghetti",
+   "quantity": 150,
+   "unit": "g"
+  },
+  {
+   "name": "zucchini",
+   "quantity": 175,
+   "unit": "g",
+   "note": "cut into chunks"
+  }
+ ]
+}
