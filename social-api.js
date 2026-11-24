@@ -29,8 +29,9 @@ function session(value) {
   if (!value?.access_token) return null;
   return { accessToken: value.access_token, refreshToken: value.refresh_token, expiresAt: value.expires_at || Math.floor(Date.now() / 1000) + value.expires_in, user: value.user };
 }
+const authorization = (headers = {}) => typeof headers.get === 'function' ? headers.get('authorization') : headers.authorization || headers.Authorization;
 function tokenFrom(headers = {}) {
-  const header = typeof headers.get === 'function' ? headers.get('authorization') : headers.authorization || headers.Authorization;
+  const header = authorization(headers);
   const match = /^Bearer ([A-Za-z0-9._~-]+)$/.exec(header || '');
   if (!match || match[1].length > 10000) fail(401, 'Sign in to continue.');
   return match[1];
@@ -47,6 +48,10 @@ function isSecret(key) {
 // skips repeat lookups. Entries never outlive the token's own expiry.
 const VERIFIED_TTL_MS = 60_000;
 const VERIFIED_MAX = 500;
+// Guests, who send no Authorization header at all, may read public pages; everything else needs a signed-in user.
+const GUEST_READS = /^\/(?:feed|search|cookbooks|recipes|(?:cookbooks|recipes)\/[^/]+)$/;
+// Every guest gets the same public feed, so one copy serves them all for a few seconds.
+const GUEST_FEED_TTL_MS = 15_000;
 
 export function createSocialApi({ url, key, fetcher = fetch } = {}) {
   if (!url || !key) throw new Error('Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY) for accounts and shared cookbooks.');
@@ -55,6 +60,10 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
   if (isSecret(key)) throw new Error('Use a Supabase publishable or anon key, never a service-role or secret key, for the social app.');
   const credentials = new WeakMap();
   const verified = new Map();
+  // A guest's requests carry the anon key as their JWT, so PostgREST and Storage apply the anon role's policies.
+  // A publishable key (sb_publishable_…) is not a JWT: the gateway assigns the anon role from the apikey header alone.
+  const guestToken = jwtPayload(key)?.role === 'anon' ? key : undefined;
+  let guestFeed = null;
 
   async function request(path, { token, method = 'GET', body, headers = {}, binary = false } = {}) {
     let response;
@@ -138,7 +147,7 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
     return photo.id;
   }
   async function getPhoto(headers, photoId) {
-    id(photoId); const user = await authenticate(headers); const token = credential(user);
+    id(photoId); const token = authorization(headers) ? credential(await authenticate(headers)) : guestToken;
     const photo = await one(`social_photos?id=eq.${photoId}&select=path&limit=1`, token, {}, false);
     if (!photo) return null;
     return request(`/storage/v1/object/authenticated/social-recipe-photos/${photo.path}`, { token, binary: true });
@@ -167,11 +176,25 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
     if (!Object.keys(data).length) fail(400, 'Choose a field to update.');
     return data;
   }
-  async function feed(token) {
-    const names = ['profiles?select=*&order=username&limit=200', 'cookbook_stats?select=*&order=created_at.desc&limit=100', 'recipe_stats?select=*&order=created_at.desc&limit=300', 'friendships?select=*&limit=200', 'cookbook_follows?select=*&limit=200', 'recipe_reviews?select=*&order=created_at.desc&limit=1000', 'review_replies?select=*&order=created_at.asc&limit=1000'];
-    // All eight reads are independent; issue them together.
-    const [profiles, cookbooks, recipes, friendships, follows, reviews, replies, memberships] = await Promise.all([...names.map(name => rest(name, token)), rpc('cookbook_my_memberships', token, {})]);
+  async function feed(token, guest = false) {
+    // All the reads are independent; issue them together. Guests have no friends or follows to read, and RLS keeps
+    // the rest to public cookbooks, their recipes and conversations, and the cooks behind them.
+    const [profiles, cookbooks, recipes, friendships, follows, reviews, replies, memberships] = await Promise.all([
+      rest('profiles?select=*&order=username&limit=200', token), rest('cookbook_stats?select=*&order=created_at.desc&limit=100', token),
+      rest('recipe_stats?select=*&order=created_at.desc&limit=300', token),
+      guest ? [] : rest('friendships?select=*&limit=200', token), guest ? [] : rest('cookbook_follows?select=*&limit=200', token),
+      rest('recipe_reviews?select=*&order=created_at.desc&limit=1000', token), rest('review_replies?select=*&order=created_at.asc&limit=1000', token),
+      rpc('cookbook_my_memberships', token, {})]);
     return decodeSocial({ profiles, cookbooks, recipes, friendships, follows, reviews, replies, memberships });
+  }
+  function publicFeed() {
+    const now = Date.now();
+    if (!guestFeed || guestFeed.until <= now) {
+      const value = feed(guestToken, true);
+      guestFeed = { value, until: now + GUEST_FEED_TTL_MS };
+      value.catch(() => { if (guestFeed?.value === value) guestFeed = null; });
+    }
+    return guestFeed.value;
   }
   // Deleting an account asks for the username and current password again. The
   // database function does the deletion for auth.uid() and returns the paths of
@@ -198,7 +221,7 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
   async function handle({ method = 'GET', pathname, query = new URLSearchParams(), headers = {}, body } = {}) {
     if (!pathname?.startsWith('/api/social/')) return null;
     const path = pathname.slice('/api/social'.length);
-    if (path === '/config' && method === 'GET') return { status: 200, body: { configured: true, authRequired: true, appName: APP_NAME } };
+    if (path === '/config' && method === 'GET') return { status: 200, body: { configured: true, authRequired: false, appName: APP_NAME } };
     if (path === '/auth/signup' && method === 'POST') {
       const input = object(body); const name = username(input.username);
       const email = string(input.email, 'Email', 254).toLowerCase();
@@ -217,7 +240,10 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
       const result = await request('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: string(input.refreshToken, 'Session', 1000) } });
       return { status: 200, body: { session: session(result) } };
     }
-    const user = await authenticate(headers); const token = credential(user);
+    // No Authorization header: a guest, who may only read public pages. A header that fails to verify is still a 401.
+    const guest = !authorization(headers);
+    if (guest && !(method === 'GET' && GUEST_READS.test(path))) fail(401, 'Sign in to continue.');
+    const user = guest ? null : await authenticate(headers); const token = guest ? guestToken : credential(user);
     let result; let status = 200; let match;
     if (path === '/auth/logout' && method === 'POST') { verified.delete(token); await request('/auth/v1/logout', { token, method: 'POST' }); result = { signedOut: true }; }
     else if (path === '/me' && method === 'GET') result = { user: { id: user.id, email: user.email }, profile: await one(`profiles?id=eq.${user.id}&limit=1`, token) };
@@ -229,7 +255,7 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
       if (!Object.keys(data).length) fail(400, 'Choose a field to update.');
       result = await one(`profiles?id=eq.${user.id}`, token, { method: 'PATCH', headers: representation, body: data });
     }
-    else if (path === '/feed' && method === 'GET') result = await feed(token);
+    else if (path === '/feed' && method === 'GET') result = guest ? await publicFeed() : await feed(token);
     else if (path === '/search' && method === 'GET') {
       const get = key => typeof query.get === 'function' ? query.get(key) || '' : query[key] || '';
       const category = get('category'), protein = get('meatType');

@@ -52,6 +52,7 @@ test('social deployment schema enforces permissions in PostgreSQL', async t => {
       ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
       GRANT USAGE ON SCHEMA public, auth, storage TO anon, authenticated;
       GRANT SELECT, INSERT, DELETE ON storage.objects TO authenticated;
+      GRANT SELECT ON storage.objects TO anon;
     `);
     await db.exec(await readFile(new URL('../hosting/social-schema.sql', import.meta.url), 'utf8'));
     for (const [name, personId] of Object.entries(people)) {
@@ -76,9 +77,25 @@ test('social deployment schema enforces permissions in PostgreSQL', async t => {
       await denied(() => query('alice', 'UPDATE public.cookbooks SET owner_id=$1 WHERE id=$2', [people.dan, books.private]));
     });
 
-    await t.test('anonymous users cannot read the community, while strangers see only public cookbooks', async () => {
-      await denied(() => query(null, 'SELECT * FROM public.cookbooks'));
-      await denied(() => query(null, 'SELECT public.cookbook_is_member($1)', [books.public]));
+    await t.test('guests read only public cookbooks and the cooks behind them, and can change nothing', async () => {
+      assert.deepEqual(ids(await query(null, 'SELECT id FROM public.cookbooks')), [books.public]);
+      assert.deepEqual(ids(await query(null, 'SELECT id FROM public.cookbook_stats')), [books.public]);
+      assert.deepEqual(ids(await query(null, 'SELECT id FROM public.recipe_stats')), [recipes.public, recipes.second].sort());
+      assert.equal((await query(null, 'SELECT public.cookbook_is_member($1) AS member', [books.public])).rows[0].member, false);
+      // Only Alice has a public cookbook so far; Dan keeps a private one, the others have done nothing public.
+      assert.deepEqual((await query(null, 'SELECT username FROM public.profiles')).rows.map(row => row.username), ['alice']);
+      const members = (await query(null, 'SELECT public.cookbook_my_memberships() AS rows')).rows[0].rows;
+      assert.deepEqual(members.map(m => [m.cookbook_id, m.user_id]), [[books.public, people.alice]]);
+      const guestSearch = (await query(null, 'SELECT public.cookbook_search($1,$2,$3,$4) AS result', ['', '', '', ''])).rows[0].result;
+      assert.deepEqual(guestSearch.recipes.map(recipe => recipe.id).sort(), [recipes.public, recipes.second].sort());
+      assert.deepEqual(guestSearch.cookbooks.map(book => book.id), [books.public]);
+      assert.deepEqual(guestSearch.profiles.map(person => person.username), ['alice']);
+      for (const table of ['friendships', 'cookbook_follows', 'cookbook_planners', 'reports']) await denied(() => query(null, `SELECT * FROM public.${table}`));
+      await denied(() => query(null, 'INSERT INTO public.cookbooks(owner_id,name,visibility) VALUES($1,$2,$3)', [people.alice, 'Guest book', 'public']));
+      await denied(() => query(null, 'UPDATE public.cookbook_recipes SET title=$1 WHERE id=$2', ['Taken over', recipes.public]));
+      await denied(() => query(null, 'DELETE FROM public.cookbook_recipes WHERE id=$1', [recipes.public]));
+      await denied(() => query(null, 'INSERT INTO public.recipe_reviews(recipe_id,user_id,rating,comment) VALUES($1,$2,5,$3)', [recipes.public, people.dan, 'Lovely']));
+      await denied(() => query(null, 'SELECT * FROM public.cookbook_get_planner($1)', [books.public]));
       assert.deepEqual(ids(await query('eve', 'SELECT id FROM public.cookbooks')), [books.public]);
       assert.deepEqual(ids(await query('eve', 'SELECT id FROM public.cookbook_recipes')), [recipes.public, recipes.second].sort());
       const changes = await query('eve', 'UPDATE public.cookbook_recipes SET title=$1 WHERE id=$2 RETURNING id', ['Taken over', recipes.public]);
@@ -265,6 +282,21 @@ test('social deployment schema enforces permissions in PostgreSQL', async t => {
       assert.equal((await query('alice', 'DELETE FROM public.social_photos WHERE id=$1 RETURNING id', [draft])).rows.length, 0);
       assert.equal((await query('bob', 'DELETE FROM public.social_photos WHERE id=$1 RETURNING id', [draft])).rows.length, 1);
       assert.equal((await query('bob', 'DELETE FROM storage.objects WHERE name=$1 RETURNING id', [`${people.bob}/${draft}.webp`])).rows.length, 1);
+    });
+
+    await t.test('guests read the photos and conversation of public recipes, never those of private ones', async () => {
+      const publicReviews = (await db.query('SELECT v.id FROM public.recipe_reviews v JOIN public.cookbook_recipes r ON r.id=v.recipe_id WHERE r.cookbook_id=$1', [books.public])).rows.map(row => row.id).sort();
+      assert.ok(publicReviews.length > 0);
+      assert.deepEqual(ids(await query(null, 'SELECT id FROM public.recipe_reviews')), publicReviews);
+      assert.equal((await query(null, 'SELECT id FROM public.review_replies WHERE review_id=$1', [caraReview])).rows.length, 3);
+      assert.equal(Number((await query(null, 'SELECT review_count FROM public.cookbook_stats WHERE id=$1', [books.public])).rows[0].review_count), 4);
+      assert.deepEqual(ids(await query(null, 'SELECT id FROM public.social_photos')), [publicPhoto]);
+      assert.equal((await query(null, 'SELECT id FROM storage.objects WHERE name=$1', [`${people.alice}/${publicPhoto}.webp`])).rows.length, 1);
+      assert.equal((await query(null, 'SELECT id FROM storage.objects WHERE name=$1', [`${people.alice}/${photo}.webp`])).rows.length, 0, 'The private recipe keeps its photo to itself');
+      const publicMembers = (await db.query("SELECT m.id FROM public.cookbook_members m JOIN public.cookbooks b ON b.id=m.cookbook_id WHERE b.visibility='public' AND m.status='accepted'")).rows.map(row => row.id).sort();
+      assert.deepEqual(ids(await query(null, 'SELECT id FROM public.cookbook_members')), publicMembers, 'Guests see who cooks in public cookbooks, and no other membership or invitation');
+      await denied(() => query(null, 'INSERT INTO storage.objects(bucket_id,name) VALUES($1,$2)', ['social-recipe-photos', `${people.alice}/${randomUUID()}.webp`]));
+      await denied(() => query(null, 'DELETE FROM public.social_photos WHERE id=$1', [publicPhoto]));
     });
   } finally {
     await db.close();
