@@ -25,13 +25,53 @@ function harness(handler = () => []) {
   return { api, calls, invoke };
 }
 
-test('social configuration is public but collection data requires a verified bearer token', async () => {
+test('social configuration is public; guests may only read public pages, everything else needs a verified bearer token', async () => {
   const { api, calls } = harness();
-  assert.equal((await api.handle({ method: 'GET', pathname: '/api/social/config' })).body.authRequired, true);
+  assert.equal((await api.handle({ method: 'GET', pathname: '/api/social/config' })).body.authRequired, false);
   assert.equal(calls.length, 0);
-  await assert.rejects(api.handle({ method: 'GET', pathname: '/api/social/feed' }), { status: 401 });
+  const guest = (pathname, method = 'GET') => api.handle({ method, pathname: `/api/social${pathname}`, headers: {}, query: new URLSearchParams() });
+  for (const [pathname, method] of [['/me'], ['/friends'], ['/cookbooks/' + BOOK + '/planner'], ['/recipes/' + RECIPE + '/review', 'PUT'], ['/recipes', 'POST'], ['/cookbooks/' + BOOK + '/follow', 'PUT'], ['/reports', 'POST'], ['/auth/logout', 'POST']]) {
+    await assert.rejects(guest(pathname, method), { status: 401 }, `${method || 'GET'} ${pathname}`);
+  }
+  // A header that is present but wrong is a failed sign-in, never a quiet fall back to guest access.
+  await assert.rejects(api.handle({ method: 'GET', pathname: '/api/social/feed', headers: { authorization: 'Basic abc' } }), { status: 401 });
   assert.equal(calls.length, 0);
   assert.equal(await api.handle({ method: 'GET', pathname: '/api/legacy' }), null);
+});
+
+test('guests read the public feed, cookbooks, recipes and search as the anon role, with no friends or follows', async () => {
+  const { api, calls } = harness(call => call.path.endsWith('/cookbook_my_memberships') ? [] : call.path.endsWith('/cookbook_search') ? { profiles: [], cookbooks: [], recipes: [] } : []);
+  const guest = (pathname, query = new URLSearchParams()) => api.handle({ method: 'GET', pathname: `/api/social${pathname}`, headers: {}, query });
+  const feed = await guest('/feed');
+  assert.deepEqual(feed.body.friendships, []);
+  assert.deepEqual(feed.body.follows, []);
+  assert.equal(calls.some(call => call.path === '/auth/v1/user'), false, 'No sign-in check for a guest');
+  assert.equal(calls.some(call => /friendships|cookbook_follows/.test(call.path)), false);
+  assert.ok(calls.every(call => call.headers.Authorization === undefined && call.headers.apikey === 'sb_publishable_test'));
+  const before = calls.length;
+  await guest('/feed');
+  assert.equal(calls.length, before, 'Guests share one copy of the public feed for a few seconds');
+  await guest(`/cookbooks/${BOOK}`).catch(() => {});
+  await guest(`/recipes/${RECIPE}`).catch(() => {});
+  await guest('/recipes', new URLSearchParams({ cookbookId: BOOK }));
+  await guest('/search', new URLSearchParams({ q: 'rice' }));
+  assert.deepEqual(calls.slice(before).map(call => call.path), ['/rest/v1/cookbook_stats', '/rest/v1/recipe_stats', '/rest/v1/recipe_stats', '/rest/v1/rpc/cookbook_search']);
+});
+
+test('with a legacy anon key, guest reads and photo downloads carry that key as their JWT', async () => {
+  const anonKey = `x.${Buffer.from(JSON.stringify({ role: 'anon' })).toString('base64url')}.x`;
+  const calls = [];
+  const api = createSocialApi({ url: 'https://example.supabase.co', key: anonKey, fetcher: async (url, options) => {
+    calls.push({ path: url.pathname, ...options });
+    if (url.pathname === '/rest/v1/social_photos') return Response.json([{ path: `${USER}/${PHOTO}.webp` }]);
+    if (url.pathname.startsWith('/storage/')) return new Response(Buffer.from('webp'), { headers: { 'content-type': 'image/webp' } });
+    return Response.json([]);
+  } });
+  await api.handle({ method: 'GET', pathname: '/api/social/recipes', headers: {}, query: new URLSearchParams() });
+  const photo = await api.getPhoto({}, PHOTO);
+  assert.equal(photo.data.toString(), 'webp');
+  assert.deepEqual(calls.map(call => call.path), ['/rest/v1/recipe_stats', '/rest/v1/social_photos', `/storage/v1/object/authenticated/social-recipe-photos/${USER}/${PHOTO}.webp`]);
+  assert.ok(calls.every(call => call.headers.Authorization === `Bearer ${anonKey}`));
 });
 
 test('social adapter rejects service-role, secret, insecure and malformed project configuration', () => {

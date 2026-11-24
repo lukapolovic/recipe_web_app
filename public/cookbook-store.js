@@ -8,7 +8,7 @@ import { shoppingList, checkKey } from './recipe-math.js';
 //
 // Interface (both adapters):
 //   demo                               true for the sample kitchen
-//   loadFeed()                         -> { feed, user, profile }
+//   loadFeed()                         -> { feed, user, profile }; user and profile are null for a guest
 //   hydrateBook(id) / hydrateSelection({ view, selectedId })
 //                                      fetch rows a page needs, through the host
 //   search({ q, category, meatType, tag }, signal)
@@ -127,6 +127,8 @@ export function createHttpStore({ host, fetcher = (...args) => fetch(...args), s
     dropSession() { saveSession(null); },
 
     async loadFeed() {
+      // A guest (no session) reads the public feed and has no account to load.
+      if (!session) return { feed: await api('/api/social/feed'), user: null, profile: null };
       const [feed, me] = await Promise.all([api('/api/social/feed'), api('/api/social/me')]);
       return { feed, user: me.user, profile: me.profile };
     },

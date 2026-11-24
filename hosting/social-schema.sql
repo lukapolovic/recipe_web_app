@@ -173,9 +173,12 @@ language sql stable security definer set search_path = '' as $$
   );
 $$;
 revoke all on function public.cookbook_can_read_as(uuid,uuid) from public,anon,authenticated;
+-- Guests (no signed-in user) read public cookbooks only.
 create function public.cookbook_can_read(book uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select public.cookbook_can_read_as(book,auth.uid());
+  select case when auth.uid() is null
+    then exists(select 1 from public.cookbooks b where b.id=book and b.visibility='public')
+    else public.cookbook_can_read_as(book,auth.uid()) end;
 $$;
 create function public.cookbook_can_read_recipe(recipe uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
@@ -195,6 +198,20 @@ language sql stable security definer set search_path = '' as $$
   select exists(select 1 from public.recipe_reviews v join public.cookbook_recipes r on r.id=v.recipe_id
     where v.id=review and public.cookbook_can_read(r.cookbook_id)
       and (v.user_id=auth.uid() or public.cookbook_is_member(r.cookbook_id)));
+$$;
+-- Guests see the cooks behind public pages: members of a public cookbook, and
+-- people who wrote a recipe, review or reply in one. Everyone else is visible
+-- to signed-in members only.
+create function public.cookbook_profile_public(person uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists(select 1 from public.cookbook_members m join public.cookbooks b on b.id=m.cookbook_id
+      where m.user_id=person and m.status='accepted' and b.visibility='public')
+    or exists(select 1 from public.cookbook_recipes r join public.cookbooks b on b.id=r.cookbook_id
+      where r.author_id=person and b.visibility='public')
+    or exists(select 1 from public.recipe_reviews v join public.cookbook_recipes r on r.id=v.recipe_id join public.cookbooks b on b.id=r.cookbook_id
+      where v.user_id=person and b.visibility='public')
+    or exists(select 1 from public.review_replies x join public.recipe_reviews v on v.id=x.review_id join public.cookbook_recipes r on r.id=v.recipe_id join public.cookbooks b on b.id=r.cookbook_id
+      where x.user_id=person and b.visibility='public');
 $$;
 create function public.cookbook_photo_owned(photo uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
@@ -491,32 +508,33 @@ alter table public.review_replies enable row level security;
 alter table public.cookbook_planners enable row level security;
 alter table public.reports enable row level security;
 
-create policy photos_read on public.social_photos for select to authenticated using(owner_id=auth.uid() or public.cookbook_photo_readable(id));
+create policy photos_read on public.social_photos for select to anon, authenticated using(owner_id=auth.uid() or public.cookbook_photo_readable(id));
 create policy photos_create on public.social_photos for insert to authenticated with check(owner_id=auth.uid() and path=owner_id::text || '/' || id::text || '.webp');
 create policy photos_delete on public.social_photos for delete to authenticated using(owner_id=auth.uid() and public.cookbook_photo_unattached(id));
 create policy profiles_read on public.profiles for select to authenticated using(true);
+create policy profiles_read_guest on public.profiles for select to anon using(public.cookbook_profile_public(id));
 create policy profiles_edit on public.profiles for update to authenticated using(id=auth.uid()) with check(id=auth.uid());
-create policy books_read on public.cookbooks for select to authenticated using(owner_id=auth.uid() or public.cookbook_can_read(id));
+create policy books_read on public.cookbooks for select to anon, authenticated using(owner_id=auth.uid() or public.cookbook_can_read(id));
 create policy books_create on public.cookbooks for insert to authenticated with check(owner_id=auth.uid() and public.cookbook_photo_owned(cover_image_id));
 create policy books_edit on public.cookbooks for update to authenticated using(public.cookbook_is_member(id)) with check(public.cookbook_is_member(id) and public.cookbook_photo_attachable(cover_image_id,id));
 create policy books_delete on public.cookbooks for delete to authenticated using(owner_id=auth.uid());
-create policy members_read on public.cookbook_members for select to authenticated using(user_id=auth.uid() or public.cookbook_is_member(cookbook_id) or (status='accepted' and public.cookbook_can_read(cookbook_id)));
+create policy members_read on public.cookbook_members for select to anon, authenticated using(user_id=auth.uid() or public.cookbook_is_member(cookbook_id) or (status='accepted' and public.cookbook_can_read(cookbook_id)));
 create policy members_delete on public.cookbook_members for delete to authenticated using(role='partner' and (user_id=auth.uid() or public.cookbook_is_owner(cookbook_id)));
 create policy friends_read on public.friendships for select to authenticated using(auth.uid() in (requester_id,addressee_id));
 create policy friends_create on public.friendships for insert to authenticated with check(requester_id=auth.uid() and status='pending');
 create policy friends_delete on public.friendships for delete to authenticated using(auth.uid() in (requester_id,addressee_id));
-create policy recipes_read on public.cookbook_recipes for select to authenticated using(public.cookbook_can_read(cookbook_id));
+create policy recipes_read on public.cookbook_recipes for select to anon, authenticated using(public.cookbook_can_read(cookbook_id));
 create policy recipes_create on public.cookbook_recipes for insert to authenticated with check(author_id=auth.uid() and public.cookbook_is_member(cookbook_id) and public.cookbook_photo_attachable(image_id,cookbook_id));
 create policy recipes_edit on public.cookbook_recipes for update to authenticated using(public.cookbook_is_member(cookbook_id)) with check(public.cookbook_is_member(cookbook_id) and public.cookbook_photo_attachable(image_id,cookbook_id));
 create policy recipes_delete on public.cookbook_recipes for delete to authenticated using(public.cookbook_is_member(cookbook_id));
 create policy follows_read on public.cookbook_follows for select to authenticated using(user_id=auth.uid());
 create policy follows_create on public.cookbook_follows for insert to authenticated with check(user_id=auth.uid() and public.cookbook_can_read(cookbook_id));
 create policy follows_delete on public.cookbook_follows for delete to authenticated using(user_id=auth.uid());
-create policy reviews_read on public.recipe_reviews for select to authenticated using(public.cookbook_can_read_recipe(recipe_id));
+create policy reviews_read on public.recipe_reviews for select to anon, authenticated using(public.cookbook_can_read_recipe(recipe_id));
 create policy reviews_create on public.recipe_reviews for insert to authenticated with check(user_id=auth.uid() and public.cookbook_can_review(recipe_id));
 create policy reviews_edit on public.recipe_reviews for update to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid() and public.cookbook_can_review(recipe_id));
 create policy reviews_delete on public.recipe_reviews for delete to authenticated using(user_id=auth.uid());
-create policy replies_read on public.review_replies for select to authenticated using(public.cookbook_can_read_review(review_id));
+create policy replies_read on public.review_replies for select to anon, authenticated using(public.cookbook_can_read_review(review_id));
 create policy replies_create on public.review_replies for insert to authenticated with check(user_id=auth.uid() and public.cookbook_can_reply(review_id));
 create policy replies_delete on public.review_replies for delete to authenticated using(user_id=auth.uid());
 create policy planner_read on public.cookbook_planners for select to authenticated using(public.cookbook_is_member(cookbook_id));
@@ -548,6 +566,8 @@ $$;
 
 revoke all on public.social_photos,public.profiles,public.cookbooks,public.cookbook_members,public.friendships,public.cookbook_recipes,public.cookbook_follows,public.recipe_reviews,public.review_replies,public.cookbook_planners,public.cookbook_stats,public.recipe_stats from anon,authenticated;
 grant select on public.social_photos,public.profiles,public.cookbooks,public.cookbook_members,public.friendships,public.cookbook_recipes,public.cookbook_follows,public.recipe_reviews,public.review_replies,public.cookbook_planners,public.cookbook_stats,public.recipe_stats to authenticated;
+-- Guests read public content only: friendships, follows, planners and reports stay closed to them.
+grant select on public.social_photos,public.profiles,public.cookbooks,public.cookbook_members,public.cookbook_recipes,public.recipe_reviews,public.review_replies,public.cookbook_stats,public.recipe_stats to anon;
 grant update(username,display_name,bio) on public.profiles to authenticated;
 grant insert,delete on public.social_photos,public.cookbooks,public.friendships,public.cookbook_recipes,public.cookbook_follows,public.recipe_reviews,public.review_replies to authenticated;
 grant delete on public.cookbook_members to authenticated;
@@ -562,8 +582,10 @@ grant update(rating,comment) on public.recipe_reviews to authenticated;
 
 -- PostgreSQL grants new functions to PUBLIC by default; explicitly close that
 -- default for every function in this application before allowing signed-in use.
-revoke all on function public.cookbook_new_user(),public.cookbook_created(),public.cookbook_touch_updated(),public.cookbook_is_member(uuid),public.cookbook_is_owner(uuid),public.cookbook_can_read(uuid),public.cookbook_can_read_recipe(uuid),public.cookbook_can_review(uuid),public.cookbook_can_read_review(uuid),public.cookbook_can_reply(uuid),public.cookbook_photo_owned(uuid),public.cookbook_photo_attachable(uuid,uuid),public.cookbook_photo_readable(uuid),public.cookbook_photo_unattached(uuid),public.cookbook_storage_readable(text),public.cookbook_storage_owned(text),public.cookbook_storage_unattached(text),public.cookbook_storage_orphaned(text),public.cookbook_can_report(text,uuid),public.cookbook_invite_partner(uuid,text),public.cookbook_accept_invitation(uuid),public.cookbook_accept_friendship(uuid),public.cookbook_my_memberships(),public.cookbook_get_planner(uuid),public.cookbook_save_planner(uuid,jsonb,integer),public.cookbook_search(text,text,text,text),public.delete_my_account() from public,anon;
-grant execute on function public.cookbook_is_member(uuid),public.cookbook_is_owner(uuid),public.cookbook_can_read(uuid),public.cookbook_can_read_recipe(uuid),public.cookbook_can_review(uuid),public.cookbook_can_read_review(uuid),public.cookbook_can_reply(uuid),public.cookbook_photo_owned(uuid),public.cookbook_photo_attachable(uuid,uuid),public.cookbook_photo_readable(uuid),public.cookbook_photo_unattached(uuid),public.cookbook_storage_readable(text),public.cookbook_storage_owned(text),public.cookbook_storage_unattached(text),public.cookbook_storage_orphaned(text),public.cookbook_can_report(text,uuid),public.cookbook_invite_partner(uuid,text),public.cookbook_accept_invitation(uuid),public.cookbook_accept_friendship(uuid),public.cookbook_my_memberships(),public.cookbook_get_planner(uuid),public.cookbook_save_planner(uuid,jsonb,integer),public.cookbook_search(text,text,text,text),public.delete_my_account() to authenticated;
+revoke all on function public.cookbook_new_user(),public.cookbook_created(),public.cookbook_touch_updated(),public.cookbook_is_member(uuid),public.cookbook_is_owner(uuid),public.cookbook_can_read(uuid),public.cookbook_can_read_recipe(uuid),public.cookbook_can_review(uuid),public.cookbook_can_read_review(uuid),public.cookbook_can_reply(uuid),public.cookbook_profile_public(uuid),public.cookbook_photo_owned(uuid),public.cookbook_photo_attachable(uuid,uuid),public.cookbook_photo_readable(uuid),public.cookbook_photo_unattached(uuid),public.cookbook_storage_readable(text),public.cookbook_storage_owned(text),public.cookbook_storage_unattached(text),public.cookbook_storage_orphaned(text),public.cookbook_can_report(text,uuid),public.cookbook_invite_partner(uuid,text),public.cookbook_accept_invitation(uuid),public.cookbook_accept_friendship(uuid),public.cookbook_my_memberships(),public.cookbook_get_planner(uuid),public.cookbook_save_planner(uuid,jsonb,integer),public.cookbook_search(text,text,text,text),public.delete_my_account() from public,anon;
+grant execute on function public.cookbook_is_member(uuid),public.cookbook_is_owner(uuid),public.cookbook_can_read(uuid),public.cookbook_can_read_recipe(uuid),public.cookbook_can_review(uuid),public.cookbook_can_read_review(uuid),public.cookbook_can_reply(uuid),public.cookbook_profile_public(uuid),public.cookbook_photo_owned(uuid),public.cookbook_photo_attachable(uuid,uuid),public.cookbook_photo_readable(uuid),public.cookbook_photo_unattached(uuid),public.cookbook_storage_readable(text),public.cookbook_storage_owned(text),public.cookbook_storage_unattached(text),public.cookbook_storage_orphaned(text),public.cookbook_can_report(text,uuid),public.cookbook_invite_partner(uuid,text),public.cookbook_accept_invitation(uuid),public.cookbook_accept_friendship(uuid),public.cookbook_my_memberships(),public.cookbook_get_planner(uuid),public.cookbook_save_planner(uuid,jsonb,integer),public.cookbook_search(text,text,text,text),public.delete_my_account() to authenticated;
+-- What guest reads need: the read policies' helpers, the memberships list and search.
+grant execute on function public.cookbook_is_member(uuid),public.cookbook_can_read(uuid),public.cookbook_can_read_recipe(uuid),public.cookbook_can_read_review(uuid),public.cookbook_photo_readable(uuid),public.cookbook_storage_readable(text),public.cookbook_profile_public(uuid),public.cookbook_my_memberships(),public.cookbook_search(text,text,text,text) to anon;
 
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
 values('social-recipe-photos','social-recipe-photos',false,1500000,array['image/webp'])
@@ -572,5 +594,8 @@ create policy cookbook_photo_insert on storage.objects for insert to authenticat
   with check(bucket_id='social-recipe-photos' and public.cookbook_storage_owned(name));
 create policy cookbook_photo_select on storage.objects for select to authenticated
   using(bucket_id='social-recipe-photos' and (public.cookbook_storage_owned(name) or public.cookbook_storage_readable(name) or public.cookbook_storage_orphaned(name)));
+-- Guests may download the files of photos they can see (no orphan or ownership rules: they own nothing).
+create policy cookbook_photo_select_guest on storage.objects for select to anon
+  using(bucket_id='social-recipe-photos' and public.cookbook_storage_readable(name));
 create policy cookbook_photo_delete on storage.objects for delete to authenticated
   using(bucket_id='social-recipe-photos' and (public.cookbook_storage_owned(name) or public.cookbook_storage_orphaned(name)) and public.cookbook_storage_unattached(name));

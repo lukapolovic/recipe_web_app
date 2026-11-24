@@ -32,6 +32,8 @@ function fakeServer() {
       state.plan = { cart: next.cart, checked: next.checked, version: next.version + 1 };
       return reply(structuredClone(state.plan));
     }
+    if (path === '/api/social/feed') return reply({ cookbooks: [book], recipes: [recipe] });
+    if (path === '/api/social/me') return auth ? reply({ user: { id: 'me' }, profile: { id: 'me', username: 'me' } }) : reply({ error: 'Sign in to continue.' }, 401);
     if (path === `/api/social/recipes/${RECIPE}`) return reply(recipe);
     if (path === `/api/social/cookbooks/${BOOK}`) return reply(book);
     if (path.startsWith('/api/social/search')) return reply({ recipes: [recipe] });
@@ -115,6 +117,23 @@ test('http store signs in, sends the bearer token and refreshes an expired sessi
   assert.equal(server.state.calls.find(c => c.path.endsWith('/planner')).auth, 'Bearer two', 'an already-expired session refreshes before the request');
   await store.signOut();
   assert.equal(storage.getItem('thyme-two-session-v1'), null);
+});
+
+test('http store without a session browses as a guest: the public feed, recipes and photos, no account and no token', async () => {
+  const { store, server } = makeHttp();
+  assert.equal(store.restoreSession(), false);
+  const loaded = await store.loadFeed();
+  assert.equal(loaded.user, null);
+  assert.equal(loaded.profile, null);
+  assert.deepEqual(loaded.feed.recipes.map(r => r.id), [RECIPE]);
+  await store.hydrateSelection({ view: 'recipe', selectedId: RECIPE });
+  assert.equal((await store.fetchPhoto('photo-1')).size, 3);
+  assert.deepEqual(server.state.calls.map(call => call.path), ['/api/social/feed', `/api/social/recipes/${RECIPE}`, `/api/social/cookbooks/${BOOK}`, '/api/social/photos/photo-1']);
+  assert.ok(server.state.calls.every(call => call.auth === undefined));
+  await store.signIn('login', { email: 'a@b.c', password: 'password1' });
+  const signedIn = await store.loadFeed();
+  assert.equal(signedIn.user.id, 'me');
+  assert.match(server.state.calls.at(-1).auth, /^Bearer /, 'Signed in, it sends its token again');
 });
 
 test('http store retries a request once with a refreshed token after a 401', async () => {

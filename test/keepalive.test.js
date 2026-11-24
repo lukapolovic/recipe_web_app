@@ -102,8 +102,8 @@ test('keepalive() is callable by anon and reads no application data', async () =
     await db.exec('SET ROLE anon');
     const { rows } = await db.query('SELECT public.keepalive() AS at');
     assert.ok(rows[0].at instanceof Date);
-    // Running as the caller, anon still cannot read any table.
-    await assert.rejects(db.query('SELECT * FROM public.profiles'), error => error.code === '42501');
+    // Running as the caller, anon reads only what guests may read; friendships stay closed to it.
+    await assert.rejects(db.query('SELECT * FROM public.friendships'), error => error.code === '42501');
     await db.exec('RESET ROLE');
     const { rows: [fn] } = await db.query("SELECT prosecdef, proacl::text AS acl FROM pg_proc WHERE proname='keepalive'");
     assert.equal(fn.prosecdef, false);
