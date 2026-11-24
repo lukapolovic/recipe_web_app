@@ -126,9 +126,11 @@ function ratingLabel(stats) { return stats.count ? `${icon('star')}<strong>${sta
 function notify(message) { const toast = $('#toast'); toast.textContent = message; toast.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 4500); }
 // Private photos are fetched with the session token and shown as blob URLs.
 // Pages render immediately with placeholders; each <template data-photo>
-// slot is filled once its card scrolls near the viewport (a few at a time).
+// slot is filled once its card scrolls near the viewport (a few at a time),
+// and only after the photo has been decoded (showPhoto).
 const photoPending = new Map(), photoFailed = new Map(), photoQueue = [];
 const PHOTO_CONCURRENCY = 4, PHOTO_RETRY_MS = 5 * 60 * 1000;
+const failedRecently = id => Date.now() - (photoFailed.get(id) || 0) < PHOTO_RETRY_MS;
 let photoEpoch = 0, photosActive = 0;
 function loadPhoto(id) {
   if (!id || photoCache.has(id)) return Promise.resolve();
@@ -159,7 +161,7 @@ const photoObserver = typeof IntersectionObserver === 'function' ? new Intersect
   for (const entry of entries) {
     if (!entry.isIntersecting) continue;
     photoObserver.unobserve(entry.target);
-    for (const slot of entry.target.querySelectorAll(':scope > template[data-photo]')) requestPhoto(slot.dataset.photo);
+    for (const slot of entry.target.querySelectorAll('template[data-photo]')) if (!failedRecently(slot.dataset.photo)) requestPhoto(slot.dataset.photo);
   }
 }, { rootMargin: '800px 0px' }) : null;
 function hydratePhotos(root) {
@@ -167,23 +169,40 @@ function hydratePhotos(root) {
   for (const slot of root.querySelectorAll('template[data-photo]')) {
     const id = slot.dataset.photo;
     if (photoCache.has(id)) { showPhoto(id); continue; }
-    if (Date.now() - (photoFailed.get(id) || 0) < PHOTO_RETRY_MS) continue;
-    if (photoObserver && slot.parentElement) photoObserver.observe(slot.parentElement); else requestPhoto(id);
+    if (failedRecently(id)) continue;
+    // A carousel's track clips its cards, so the viewport cannot see the next card until it is already sliding in,
+    // and its photo would arrive mid-slide. Watch the whole carousel instead: its few photos load as it comes near.
+    const watch = slot.closest('[data-carousel]') || slot.parentElement;
+    if (photoObserver && watch) photoObserver.observe(watch); else requestPhoto(id);
   }
 }
+// A photo goes in only once it is decoded. Painting an undecoded 1200 px photo decodes it on the spot, which held up
+// a frame for 50 ms or more: in a carousel, one stutter per card as it slid in.
+const photoSwaps = new WeakSet();
 function showPhoto(id) {
   const src = photoCache.get(id);
   if (!src) return;
   for (const slot of document.querySelectorAll(`template[data-photo="${CSS.escape(id)}"]`)) {
-    const img = slot.content.firstElementChild?.cloneNode(true);
-    if (!img) continue;
-    img.src = src;
-    slot.parentElement?.querySelector(':scope > [data-photo-fallback]')?.remove();
-    slot.replaceWith(img);
+    const model = slot.content.firstElementChild;
+    if (!model || photoSwaps.has(slot)) continue;
+    photoSwaps.add(slot);
+    // Imported (not cloned) so it belongs to this document and loads; eager, because a lazy image never loads while detached.
+    const img = document.importNode(model, true);
+    img.loading = 'eager'; img.decoding = 'async'; img.src = src;
+    img.decode().catch(() => {}).then(() => {
+      if (!slot.isConnected || photoCache.get(id) !== src) return;
+      slot.parentElement?.querySelector(':scope > [data-photo-fallback]')?.remove();
+      slot.replaceWith(img);
+    });
   }
 }
 // The <img> to show once a private photo has loaded (attrs exclude src).
 function photoSlot(id, attrs) { return id ? `<template data-photo="${esc(id)}"><img ${attrs}></template>` : ''; }
+// A card's photo. A photo already fetched is drawn straight away, decoded off the main thread so scrolling never waits on it.
+const cardPhoto = recipe => {
+  const image = photoSrc(recipe);
+  return image ? `<img src="${esc(image)}" alt="" loading="lazy" decoding="async">` : `${photoSlot(recipe.imageId,'alt="" loading="lazy" decoding="async"')}${noPhoto(recipe.title,recipe.imageId?'data-photo-fallback':'')}`;
+};
 function photoSrc(recipe) { return recipe?.imageId ? photoCache.get(recipe.imageId) || '' : ''; }
 async function loadFeed(renderPage = true) {
   applyLoaded(await store.loadFeed());
@@ -277,13 +296,12 @@ const dietIcon = recipe => {
   return diet ? `<span class="diet-icon" title="${diet}">${icon('leaf')}<span class="visually-hidden">${diet}</span></span>` : '';
 };
 function recipeCard(recipe, { showBook = false } = {}) {
-  const image = photoSrc(recipe), book=bookById(recipe.cookbookId);
-  return `<article class="recipe-card tone-${toneOf(book?.coverColor)}"><button class="recipe-photo" data-action="recipe" data-id="${recipe.id}" aria-label="Open ${esc(recipe.title)}"><span class="frame">${image?`<img src="${esc(image)}" alt="" loading="lazy">`:`${photoSlot(recipe.imageId,'alt="" loading="lazy"')}${noPhoto(recipe.title,recipe.imageId?'data-photo-fallback':'')}`}</span>${dietIcon(recipe)}<span class="time-pill">${icon('clock')}${recipe.minutes} min</span></button><div class="recipe-body"><h3><button data-action="recipe" data-id="${recipe.id}">${esc(recipe.title)}</button></h3>${showBook?`<span class="recipe-book-name">from ${esc(book?.name||'a shared cookbook')}</span>`:''}</div></article>`;
+  const book=bookById(recipe.cookbookId);
+  return `<article class="recipe-card tone-${toneOf(book?.coverColor)}"><button class="recipe-photo" data-action="recipe" data-id="${recipe.id}" aria-label="Open ${esc(recipe.title)}"><span class="frame">${cardPhoto(recipe)}</span>${dietIcon(recipe)}<span class="time-pill">${icon('clock')}${recipe.minutes} min</span></button><div class="recipe-body"><h3><button data-action="recipe" data-id="${recipe.id}">${esc(recipe.title)}</button></h3>${showBook?`<span class="recipe-book-name">from ${esc(book?.name||'a shared cookbook')}</span>`:''}</div></article>`;
 }
 // The home carousel's card: a square hand-cut photo with everything printed on it, as on the reference.
 function recipeTile(recipe) {
-  const image = photoSrc(recipe);
-  return `<article class="recipe-tile"><button class="recipe-photo" data-action="recipe" data-id="${recipe.id}" aria-label="Open ${esc(recipe.title)}"><span class="frame">${image?`<img src="${esc(image)}" alt="" loading="lazy">`:`${photoSlot(recipe.imageId,'alt="" loading="lazy"')}${noPhoto(recipe.title,recipe.imageId?'data-photo-fallback':'')}`}</span>${dietIcon(recipe)}<span class="time-pill">${icon('clock')}${recipe.minutes} min</span><span class="tile-title">${esc(recipe.title)}</span></button></article>`;
+  return `<article class="recipe-tile"><button class="recipe-photo" data-action="recipe" data-id="${recipe.id}" aria-label="Open ${esc(recipe.title)}"><span class="frame">${cardPhoto(recipe)}</span>${dietIcon(recipe)}<span class="time-pill">${icon('clock')}${recipe.minutes} min</span><span class="tile-title">${esc(recipe.title)}</span></button></article>`;
 }
 // Hosted recipes carry authorId (null for a former member); sample recipes may have none.
 function recipeCredit(recipe) {
