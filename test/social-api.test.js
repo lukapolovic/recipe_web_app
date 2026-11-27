@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createSocialApi, decodeSocial } from '../social-api.js';
+import { createSocialApi, decodeSocial, GUESTS_CLOSED } from '../social-api.js';
 
 const USER = '11111111-1111-4111-8111-111111111111';
 const BOOK = '22222222-2222-4222-8222-222222222222';
@@ -56,6 +56,22 @@ test('guests read the public feed, cookbooks, recipes and search as the anon rol
   await guest('/recipes', new URLSearchParams({ cookbookId: BOOK }));
   await guest('/search', new URLSearchParams({ q: 'rice' }));
   assert.deepEqual(calls.slice(before).map(call => call.path), ['/rest/v1/cookbook_stats', '/rest/v1/recipe_stats', '/rest/v1/recipe_stats', '/rest/v1/rpc/cookbook_search']);
+});
+
+test('a database that refuses guests says so plainly, logs what to run, and leaves signed-in errors alone', async t => {
+  // What PostgREST answers before hosting/migrations/001-guest-browsing.sql has run: the anon role has no grants.
+  const refused = () => Response.json({ code: '42501', message: 'permission denied for table profiles' }, { status: 401 });
+  const { api, invoke } = harness(refused);
+  const logged = t.mock.method(console, 'error', () => {});
+  const guest = pathname => api.handle({ method: 'GET', pathname: `/api/social${pathname}`, headers: {}, query: new URLSearchParams() });
+  await assert.rejects(guest('/feed'), { status: 403, message: GUESTS_CLOSED });
+  await assert.rejects(guest('/search'), { status: 403, message: GUESTS_CLOSED });
+  assert.equal(logged.mock.callCount(), 1, 'The hint is logged once, not once per visitor');
+  assert.match(logged.mock.calls[0].arguments[0], /Guest browsing is closed.*hosting\/migrations/);
+  // A signed-in reader is told about access, not about a change they never tried to make.
+  await assert.rejects(invoke('/feed'), { status: 403, message: 'You do not have access to this.' });
+  await assert.rejects(invoke('/cookbooks', 'POST', { name: 'Ours', visibility: 'private' }), { status: 403, message: 'You do not have permission to make that change.' });
+  assert.equal(logged.mock.callCount(), 1);
 });
 
 test('with a legacy anon key, guest reads and photo downloads carry that key as their JWT', async () => {

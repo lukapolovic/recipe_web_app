@@ -1,0 +1,6 @@
+# Migrations that have been run on the production database, one file name per
+# line. Add a line only after the migration ran in Supabase Studio
+# (hosting/RUNBOOK.md section 11). The Docker build refuses to deploy while a
+# file in this folder is missing here, so code never goes live before the
+# database it needs.
+001-guest-browsing.sql

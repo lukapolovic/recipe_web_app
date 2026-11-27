@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const read = file => readFileSync(new URL(file, import.meta.url), 'utf8');
 const dockerfile = read('../Dockerfile');
@@ -30,6 +30,15 @@ if (!server.includes("process.env.NODE_ENV === 'production' && !socialConfigured
 }
 if (server.includes('PANTRY_PASSWORD') || server.includes('SUPABASE_SERVICE_ROLE_KEY')) {
   throw new Error('The social app uses individual accounts and user permissions, not a shared password or service-role key.');
+}
+
+// Code that needs a database migration must not go live before production has it: a guest-browsing release once
+// shipped ahead of its migration and every visitor without an account met "permission denied". Each migration
+// file must be listed as run on production, or the build (and so the deploy) stops here.
+const applied = new Set(read('../hosting/migrations/applied-on-production.txt').split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#')));
+const pending = readdirSync(new URL('../hosting/migrations/', import.meta.url)).filter(file => file.endsWith('.sql') && !applied.has(file)).sort();
+if (pending.length) {
+  throw new Error(`Production has not had ${pending.map(file => `hosting/migrations/${file}`).join(', ')} yet. Run it in Supabase Studio (hosting/RUNBOOK.md section 11), then add its file name to hosting/migrations/applied-on-production.txt.`);
 }
 
 console.log('Dockerfile and social app source are ready. Configure Supabase, its SQL schema and authentication email before deploying.');
