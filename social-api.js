@@ -52,6 +52,10 @@ const VERIFIED_MAX = 500;
 const GUEST_READS = /^\/(?:feed|search|cookbooks|recipes|(?:cookbooks|recipes)\/[^/]+)$/;
 // Every guest gets the same public feed, so one copy serves them all for a few seconds.
 const GUEST_FEED_TTL_MS = 15_000;
+// A database that refuses the anon role outright has not been set up for guests (the code went live before its
+// migration). Visitors are told plainly, the app offers sign-in instead, and the log says what to run.
+export const GUESTS_CLOSED = 'Browsing without an account is not open right now. Sign in or join to see the cookbooks.';
+const GUESTS_CLOSED_LOG_MS = 10 * 60_000;
 
 export function createSocialApi({ url, key, fetcher = fetch } = {}) {
   if (!url || !key) throw new Error('Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY) for accounts and shared cookbooks.');
@@ -81,7 +85,7 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
       if (detail.code === '23505' || /username.*already|duplicate.*username/i.test(message)) fail(409, 'That username or item is already in use.');
       if (detail.code === '23503') fail(400, 'An item changed or no longer exists. Refresh and try again.');
       if (detail.code === 'P0002' || response.status === 404) fail(404, /username/i.test(message) ? 'Username not found.' : 'Item not found.');
-      if (detail.code === '42501' || response.status === 403) fail(403, 'You do not have permission to make that change.');
+      if (detail.code === '42501' || response.status === 403) fail(403, method === 'GET' ? 'You do not have access to this.' : 'You do not have permission to make that change.');
       if (detail.code === 'CB001') fail(400, 'You have too many unsaved photos — save or discard some first.');
       if (detail.code === 'CB002') fail(400, 'You have reached the limit of 500 photos — remove some recipe photos first.');
       if (detail.code === '22023' || detail.code === '23514') fail(400, detail.code === '22023' ? message.slice(0, 200) : 'Check the recipe, rating or cookbook fields.');
@@ -218,7 +222,19 @@ export function createSocialApi({ url, key, fetcher = fetch } = {}) {
     }
     return { deleted: true, photosRemoved };
   }
-  async function handle({ method = 'GET', pathname, query = new URLSearchParams(), headers = {}, body } = {}) {
+  let guestsClosedLoggedAt = 0;
+  async function handle(input = {}) {
+    try { return await route(input); }
+    catch (error) {
+      if (error.status !== 403 || !input.pathname?.startsWith('/api/social/') || authorization(input.headers || {})) throw error;
+      if (Date.now() - guestsClosedLoggedAt >= GUESTS_CLOSED_LOG_MS) {
+        guestsClosedLoggedAt = Date.now();
+        console.error('Guest browsing is closed: the database refused the anon role. Run the hosting/migrations files production has not had yet in Supabase Studio (hosting/RUNBOOK.md section 11).');
+      }
+      return fail(403, GUESTS_CLOSED);
+    }
+  }
+  async function route({ method = 'GET', pathname, query = new URLSearchParams(), headers = {}, body } = {}) {
     if (!pathname?.startsWith('/api/social/')) return null;
     const path = pathname.slice('/api/social'.length);
     if (path === '/config' && method === 'GET') return { status: 200, body: { configured: true, authRequired: false, appName: APP_NAME } };

@@ -777,8 +777,14 @@ databases are upgraded with numbered migration files.
 3. Fold the same change into `social-schema.sql` so new databases get it, and
    run `npm test`: the RLS tests run against the folded schema.
 4. Before running it on production, run the Backup workflow. Then paste the
-   migration into **Studio → SQL Editor** and run it. Deploy the code that needs
-   it afterwards.
+   migration into **Studio → SQL Editor** and run it. Add its file name to
+   `hosting/migrations/applied-on-production.txt` in the same pull request as
+   the code that needs it. Until that line is there, `scripts/check-hosting.js`
+   fails, so CI is red and the Docker build refuses to deploy: the live site
+   keeps the previous version instead of running code its database cannot
+   serve. If the app ever goes live ahead of its database anyway, visitors
+   without an account are sent to the sign-in page and the server log says
+   `Guest browsing is closed`.
 5. Keep the migration file in the repository: a restore uses
    `social-schema.sql`, but an older database may still need the file.
 
